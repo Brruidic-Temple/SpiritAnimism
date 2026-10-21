@@ -1,20 +1,39 @@
+using System;
 using System.Collections.Generic;
+using BepInEx.Configuration;
 using UnityEngine;
 
 namespace SpiritAnimism
 {
+    internal sealed class SummonType
+    {
+        public readonly string PrefabName;
+        public readonly string ConfigKey;
+        public readonly string MaterialPrefix;
+        public ConfigEntry<Color> Tint;
+
+        public SummonType(string prefabName, string configKey, string materialPrefix)
+        {
+            PrefabName = prefabName;
+            ConfigKey = configKey;
+            MaterialPrefix = materialPrefix;
+        }
+    }
+
     internal static class SpiritTint
     {
-        private static readonly string[] SummonPrefabs =
+        // The spirit body materials (<animal>_mat_spiritcaller, shader Custom/Fallen Warrior) carry the
+        // pink as an HDR _TintColor. Opaque parts (horns, tusks, saddle) use _Color and are left alone.
+        // Materials are shared assets and the bear prefab also holds the moose material on a hidden mesh,
+        // so the colour is chosen by material name, never by the prefab the renderer was found on.
+        internal static readonly SummonType[] Summons =
         {
-            "Bjorn_spiritcaller",
-            "Moose_spiritcaller",
-            "Boar_spiritcaller",
-            "Wolf_spiritcaller",
+            new SummonType("Bjorn_spiritcaller", "Bear", "Bjorn_"),
+            new SummonType("Moose_spiritcaller", "Moose", "Moose_"),
+            new SummonType("Boar_spiritcaller", "Boar", "Boar_"),
+            new SummonType("Wolf_spiritcaller", "Wolf", "Wolf_"),
         };
 
-        // The spirit body materials (*_mat_spiritcaller, shader Custom/Fallen Warrior) carry the
-        // pink as an HDR _TintColor. Opaque parts (horns, tusks, saddle) use _Color and are left alone.
         private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
 
         private static readonly string[] PropertiesOfInterest =
@@ -29,15 +48,15 @@ namespace SpiritAnimism
         {
             if (ZNetScene.instance == null) return;
 
-            foreach (var name in SummonPrefabs)
+            foreach (var summon in Summons)
             {
-                var prefab = ZNetScene.instance.GetPrefab(name);
+                var prefab = ZNetScene.instance.GetPrefab(summon.PrefabName);
                 if (prefab == null)
                 {
-                    Plugin.Log.LogWarning($"Prefab {name} not found");
+                    Plugin.Log.LogWarning($"Prefab {summon.PrefabName} not found");
                     continue;
                 }
-                Apply(prefab, name);
+                Apply(prefab, summon.PrefabName);
             }
         }
 
@@ -55,17 +74,24 @@ namespace SpiritAnimism
 
         private static bool IsSummon(string objectName)
         {
-            foreach (var prefabName in SummonPrefabs)
+            foreach (var summon in Summons)
             {
-                if (objectName.StartsWith(prefabName)) return true;
+                if (objectName.StartsWith(summon.PrefabName)) return true;
             }
             return false;
         }
 
+        private static SummonType OwnerOf(Material material)
+        {
+            foreach (var summon in Summons)
+            {
+                if (material.name.StartsWith(summon.MaterialPrefix, StringComparison.OrdinalIgnoreCase)) return summon;
+            }
+            return null;
+        }
+
         private static void Apply(GameObject root, string label)
         {
-            var tint = Plugin.Tint.Value;
-
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
             {
                 foreach (var material in renderer.sharedMaterials)
@@ -75,13 +101,20 @@ namespace SpiritAnimism
                     Describe(material, renderer, label);
                     if (!material.HasProperty(TintColorId)) continue;
 
+                    var owner = OwnerOf(material);
+                    if (owner == null)
+                    {
+                        Plugin.Log.LogWarning($"[{label}] tintable material {material.name} matches no summon type, left vanilla");
+                        continue;
+                    }
+
                     if (!OriginalColors.TryGetValue(material, out var original))
                     {
                         original = material.GetColor(TintColorId);
                         OriginalColors[material] = original;
                     }
 
-                    material.SetColor(TintColorId, MatchIntensity(tint, original));
+                    material.SetColor(TintColorId, MatchIntensity(owner.Tint.Value, original));
                 }
             }
         }
@@ -99,6 +132,7 @@ namespace SpiritAnimism
         private static void Describe(Material material, Renderer renderer, string label)
         {
             if (!Described.Add(material)) return;
+
             var parts = new List<string>();
             foreach (var property in PropertiesOfInterest)
             {

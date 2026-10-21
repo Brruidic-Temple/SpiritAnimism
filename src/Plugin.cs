@@ -15,7 +15,6 @@ namespace SpiritAnimism
         public const string Version = "0.1.0";
 
         internal static ManualLogSource Log;
-        internal static ConfigEntry<Color> Tint;
 
         // BepInEx does not watch config files, so poll the file's timestamp to reload edits made while playing.
         private const float ConfigPollSeconds = 1f;
@@ -25,12 +24,16 @@ namespace SpiritAnimism
         private void Awake()
         {
             Log = Logger;
-            Tint = Config.Bind(
-                "Look",
-                "Tint",
-                new Color(0.25f, 0.78f, 1f),
-                "Colour applied to the Spirit Caller summons (hex RRGGBBAA; alpha is ignored, vanilla transparency is kept).");
-            Tint.SettingChanged += (_, _) => SpiritTint.ApplyEverywhere();
+            var iceBlue = new Color(0.25f, 0.78f, 1f);
+            foreach (var summon in SpiritTint.Summons)
+            {
+                summon.Tint = Config.Bind(
+                    "Tint",
+                    summon.ConfigKey,
+                    iceBlue,
+                    $"Colour of the summoned {summon.ConfigKey.ToLower()}'s spirit body (hex RRGGBBAA; alpha is ignored, vanilla brightness and transparency are kept).");
+                summon.Tint.SettingChanged += (_, _) => SpiritTint.ApplyEverywhere();
+            }
 
             _configLastWrite = File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
