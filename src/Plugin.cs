@@ -12,7 +12,7 @@ namespace SpiritAnimism
     {
         public const string Guid = "Brruid.SpiritAnimism";
         public const string Name = "SpiritAnimism";
-        public const string Version = "0.1.0";
+        public const string Version = "0.2.0";
 
         internal static ManualLogSource Log;
 
