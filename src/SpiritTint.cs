@@ -76,7 +76,7 @@ namespace SpiritAnimism
             }
         }
 
-        private static bool IsSummon(string objectName)
+        public static bool IsSummon(string objectName)
         {
             foreach (var summon in Summons)
             {

@@ -16,6 +16,8 @@ namespace SpiritAnimism
 
         internal static ManualLogSource Log;
 
+        internal static ConfigEntry<KeyboardShortcut> DismissKey;
+
         // BepInEx does not watch config files, so poll the file's timestamp to reload edits made while playing.
         private const float ConfigPollSeconds = 1f;
         private float _nextConfigPoll;
@@ -35,6 +37,12 @@ namespace SpiritAnimism
                 summon.Tint.SettingChanged += (_, _) => SpiritTint.ApplyEverywhere();
             }
 
+            DismissKey = Config.Bind(
+                "Dismiss",
+                "Key",
+                new KeyboardShortcut(KeyCode.X, KeyCode.LeftAlt),
+                "Dismisses all spirit summons you called, with the vanilla despawn effect.");
+
             _configLastWrite = File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
             new Harmony(Guid).PatchAll();
@@ -43,6 +51,8 @@ namespace SpiritAnimism
 
         private void Update()
         {
+            if (DismissKey.Value.IsDown() && Dismiss.InputIsFree()) Dismiss.MySummons();
+
             if (Time.unscaledTime < _nextConfigPoll) return;
             _nextConfigPoll = Time.unscaledTime + ConfigPollSeconds;
 

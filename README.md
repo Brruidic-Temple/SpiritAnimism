@@ -5,7 +5,7 @@ Valheim mod by Brruid. Changes how the animals summoned by the Spirit Caller sta
 ## Status
 
 Alpha. Client-side only. A configurable tint colour per summon type (bear, moose, boar,
-wolf), reloaded live when the config file changes.
+wolf), reloaded live when the config file changes, and a hotkey to dismiss your summons.
 
 ## Config
 
@@ -14,6 +14,11 @@ wolf), reloaded live when the config file changes.
 - `Bear`, `Moose`, `Boar`, `Wolf` - hex colour of that summon's spirit body (the
   `_TintColor` of its `Custom/Fallen Warrior` material). Default `40C8FF` (ice blue) for all.
   Vanilla brightness and transparency are kept; horns, tusks and saddle stay vanilla.
+
+Section `[Dismiss]`:
+
+- `Key` - hotkey that dismisses every spirit summon you called, using the vanilla despawn
+  effect. Default `LeftAlt + X`. Ignored while the console, chat or menu is open.
 
 Edits to the file are picked up while the game runs, including on summons already out.
 
