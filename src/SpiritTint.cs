@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using BepInEx.Configuration;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace SpiritAnimism
 {
@@ -11,6 +12,8 @@ namespace SpiritAnimism
         public readonly string ConfigKey;
         public readonly string MaterialPrefix;
         public ConfigEntry<Color> Tint;
+        public ConfigEntry<float> Cutoff;
+        public ConfigEntry<float> Alpha;
 
         public SummonType(string prefabName, string configKey, string materialPrefix)
         {
@@ -35,6 +38,7 @@ namespace SpiritAnimism
         };
 
         private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
+        private static readonly int CutoffId = Shader.PropertyToID("_Cutoff");
 
         private static readonly string[] PropertiesOfInterest =
         {
@@ -42,6 +46,7 @@ namespace SpiritAnimism
         };
 
         private static readonly Dictionary<Material, Color> OriginalColors = new Dictionary<Material, Color>();
+        private static readonly Dictionary<Material, float> OriginalCutoffs = new Dictionary<Material, float>();
         private static readonly HashSet<Material> Described = new HashSet<Material>();
 
         public static void ApplyToPrefabs()
@@ -114,13 +119,21 @@ namespace SpiritAnimism
                         OriginalColors[material] = original;
                     }
 
-                    material.SetColor(TintColorId, MatchIntensity(owner.Tint.Value, original));
+                    var tint = MatchIntensity(owner.Tint.Value, original);
+                    tint.a = owner.Alpha.Value;
+                    material.SetColor(TintColorId, tint);
+
+                    if (material.HasProperty(CutoffId))
+                    {
+                        if (!OriginalCutoffs.ContainsKey(material)) OriginalCutoffs[material] = material.GetFloat(CutoffId);
+                        material.SetFloat(CutoffId, owner.Cutoff.Value);
+                    }
                 }
             }
         }
 
         // Vanilla uses HDR values (peak channel ~3). Scale the chosen colour to the same peak so
-        // brightness stays vanilla and only the hue changes; keep vanilla alpha.
+        // brightness stays vanilla and only the hue changes. Alpha is set by the caller.
         private static Color MatchIntensity(Color tint, Color original)
         {
             var originalPeak = Mathf.Max(original.r, original.g, original.b);
@@ -148,6 +161,38 @@ namespace SpiritAnimism
             Plugin.Log.LogInfo(
                 $"[{label}] renderer={renderer.name} material={material.name} shader={material.shader.name} " +
                 $"queue={material.renderQueue} {string.Join(" ", parts)}");
+
+            if (material.HasProperty(TintColorId)) DescribeAllProperties(material);
+        }
+
+        // Full dump of the spirit shader's properties, to find what drives transparency.
+        private static void DescribeAllProperties(Material material)
+        {
+            var shader = material.shader;
+            var parts = new List<string>();
+            for (var i = 0; i < shader.GetPropertyCount(); i++)
+            {
+                var name = shader.GetPropertyName(i);
+                var type = shader.GetPropertyType(i);
+                string value;
+                switch (type)
+                {
+                    case ShaderPropertyType.Color: value = material.GetColor(name).ToString(); break;
+                    case ShaderPropertyType.Vector: value = material.GetVector(name).ToString(); break;
+                    case ShaderPropertyType.Float:
+                    case ShaderPropertyType.Range: value = material.GetFloat(name).ToString("0.###"); break;
+                    case ShaderPropertyType.Int: value = material.GetInt(name).ToString(); break;
+                    case ShaderPropertyType.Texture:
+                        var texture = material.GetTexture(name);
+                        value = texture != null ? texture.name : "null";
+                        break;
+                    default: value = "?"; break;
+                }
+                parts.Add($"{name}:{type}={value}");
+            }
+            Plugin.Log.LogInfo($"  {material.name} keywords=[{string.Join(",", material.shaderKeywords)}] " +
+                               $"blend src={material.GetInt("_SrcBlend")} dst={material.GetInt("_DstBlend")} " +
+                               $"zwrite={material.GetInt("_ZWrite")} | {string.Join(" ", parts)}");
         }
     }
 }
