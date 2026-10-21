@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>10</LangVersion>
+    <AssemblyName>SpiritAnimism</AssemblyName>
+    <RootNamespace>SpiritAnimism</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>Brruid</Authors>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <DebugType>portable</DebugType>
+
+    <!-- Override on the command line with -p:ValheimManaged=... / -p:BepInExCore=... / -p:PluginDeployDir=... -->
+    <ValheimManaged Condition="'$(ValheimManaged)' == ''">$(HOME)/.local/share/Steam/steamapps/common/Valheim/valheim_Data/Managed</ValheimManaged>
+    <GaleProfile Condition="'$(GaleProfile)' == ''">$(HOME)/.var/app/com.kesomannen.gale/data/com.kesomannen.gale/valheim/profiles/TestDruidTextures</GaleProfile>
+    <BepInExCore Condition="'$(BepInExCore)' == ''">$(GaleProfile)/BepInEx/core</BepInExCore>
+    <PluginDeployDir Condition="'$(PluginDeployDir)' == ''">$(GaleProfile)/BepInEx/plugins/Brruid-SpiritAnimism</PluginDeployDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx" HintPath="$(BepInExCore)/BepInEx.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(BepInExCore)/0Harmony.dll" Private="false" />
+    <Reference Include="assembly_valheim" HintPath="$(ValheimManaged)/assembly_valheim.dll" Private="false" />
+    <Reference Include="assembly_utils" HintPath="$(ValheimManaged)/assembly_utils.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(ValheimManaged)/UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(ValheimManaged)/UnityEngine.CoreModule.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="DeployToGaleProfile" AfterTargets="Build" Condition="'$(NoDeploy)' != 'true'">
+    <MakeDir Directories="$(PluginDeployDir)" />
+    <Copy SourceFiles="$(TargetPath);$(TargetDir)$(AssemblyName).pdb" DestinationFolder="$(PluginDeployDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Deployed $(AssemblyName).dll to $(PluginDeployDir)" />
+  </Target>
+
+</Project>
