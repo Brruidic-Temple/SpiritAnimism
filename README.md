@@ -11,8 +11,9 @@ Alpha. Client-side only. One configurable tint colour applied to all four summon
 
 `BepInEx/config/Brruid.SpiritAnimism.cfg`
 
-- `Tint` - hex colour (RGB) applied to the summons. Default `40C8FF` (ice blue).
-  Vanilla transparency is kept.
+- `Tint` - hex colour applied to the summons' spirit body (the `_TintColor` of the
+  `Custom/Fallen Warrior` material). Default `40C8FF` (ice blue). Vanilla brightness and
+  transparency are kept; horns, tusks and saddle stay vanilla.
 
 ## Building
 

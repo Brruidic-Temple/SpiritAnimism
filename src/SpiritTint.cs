@@ -13,7 +13,9 @@ namespace SpiritAnimism
             "Wolf_spiritcaller",
         };
 
-        private static readonly int ColorId = Shader.PropertyToID("_Color");
+        // The spirit body materials (*_mat_spiritcaller, shader Custom/Fallen Warrior) carry the
+        // pink as an HDR _TintColor. Opaque parts (horns, tusks, saddle) use _Color and are left alone.
+        private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
 
         private static readonly string[] PropertiesOfInterest =
         {
@@ -21,6 +23,7 @@ namespace SpiritAnimism
         };
 
         private static readonly Dictionary<Material, Color> OriginalColors = new Dictionary<Material, Color>();
+        private static readonly HashSet<Material> Described = new HashSet<Material>();
 
         public static void ApplyToPrefabs()
         {
@@ -69,21 +72,33 @@ namespace SpiritAnimism
                 {
                     if (material == null) continue;
 
+                    Describe(material, renderer, label);
+                    if (!material.HasProperty(TintColorId)) continue;
+
                     if (!OriginalColors.TryGetValue(material, out var original))
                     {
-                        original = material.HasProperty(ColorId) ? material.GetColor(ColorId) : Color.white;
+                        original = material.GetColor(TintColorId);
                         OriginalColors[material] = original;
-                        Describe(material, renderer, label);
                     }
 
-                    if (!material.HasProperty(ColorId)) continue;
-                    material.SetColor(ColorId, new Color(tint.r, tint.g, tint.b, original.a));
+                    material.SetColor(TintColorId, MatchIntensity(tint, original));
                 }
             }
         }
 
+        // Vanilla uses HDR values (peak channel ~3). Scale the chosen colour to the same peak so
+        // brightness stays vanilla and only the hue changes; keep vanilla alpha.
+        private static Color MatchIntensity(Color tint, Color original)
+        {
+            var originalPeak = Mathf.Max(original.r, original.g, original.b);
+            var tintPeak = Mathf.Max(tint.r, tint.g, tint.b);
+            var scale = tintPeak > 0f ? originalPeak / tintPeak : 1f;
+            return new Color(tint.r * scale, tint.g * scale, tint.b * scale, original.a);
+        }
+
         private static void Describe(Material material, Renderer renderer, string label)
         {
+            if (!Described.Add(material)) return;
             var parts = new List<string>();
             foreach (var property in PropertiesOfInterest)
             {
