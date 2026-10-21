@@ -12,8 +12,7 @@ namespace SpiritAnimism
         public readonly string ConfigKey;
         public readonly string MaterialPrefix;
         public ConfigEntry<Color> Tint;
-        public ConfigEntry<float> Cutoff;
-        public ConfigEntry<float> Alpha;
+        public ConfigEntry<float> Fade;
 
         public SummonType(string prefabName, string configKey, string materialPrefix)
         {
@@ -38,7 +37,10 @@ namespace SpiritAnimism
         };
 
         private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
+        // The shader clips a built-in gradient against _Cutoff: raising it fades the body out evenly,
+        // and vanilla (0.589) is already the most solid it gets. Fade 0..1 maps onto 0.589..1.
         private static readonly int CutoffId = Shader.PropertyToID("_Cutoff");
+        private const float VanillaCutoff = 0.589f;
 
         private static readonly string[] PropertiesOfInterest =
         {
@@ -46,7 +48,6 @@ namespace SpiritAnimism
         };
 
         private static readonly Dictionary<Material, Color> OriginalColors = new Dictionary<Material, Color>();
-        private static readonly Dictionary<Material, float> OriginalCutoffs = new Dictionary<Material, float>();
         private static readonly HashSet<Material> Described = new HashSet<Material>();
 
         public static void ApplyToPrefabs()
@@ -119,21 +120,18 @@ namespace SpiritAnimism
                         OriginalColors[material] = original;
                     }
 
-                    var tint = MatchIntensity(owner.Tint.Value, original);
-                    tint.a = owner.Alpha.Value;
-                    material.SetColor(TintColorId, tint);
+                    material.SetColor(TintColorId, MatchIntensity(owner.Tint.Value, original));
 
                     if (material.HasProperty(CutoffId))
                     {
-                        if (!OriginalCutoffs.ContainsKey(material)) OriginalCutoffs[material] = material.GetFloat(CutoffId);
-                        material.SetFloat(CutoffId, owner.Cutoff.Value);
+                        material.SetFloat(CutoffId, Mathf.Lerp(VanillaCutoff, 1f, owner.Fade.Value));
                     }
                 }
             }
         }
 
         // Vanilla uses HDR values (peak channel ~3). Scale the chosen colour to the same peak so
-        // brightness stays vanilla and only the hue changes. Alpha is set by the caller.
+        // brightness stays vanilla and only the hue changes; keep vanilla alpha (the shader ignores it anyway).
         private static Color MatchIntensity(Color tint, Color original)
         {
             var originalPeak = Mathf.Max(original.r, original.g, original.b);
