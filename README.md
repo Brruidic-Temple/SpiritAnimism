@@ -18,7 +18,8 @@ boar, wolf), reloaded live when the config file changes.
 Section `[Fade]`:
 
 - `Bear`, `Moose`, `Boar`, `Wolf` - extra transparency, 0 (vanilla) to 1 (invisible). The spirit
-  shader fades by raising its `_Cutoff`; vanilla is already its most solid setting.
+  shader fades by raising its `_Cutoff` across its measured 0.589 to 0.63 band; vanilla is
+  already its most solid setting.
 
 Edits to the file are picked up while the game runs, including on summons already out.
 

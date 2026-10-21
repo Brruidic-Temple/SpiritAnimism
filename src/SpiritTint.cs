@@ -37,10 +37,12 @@ namespace SpiritAnimism
         };
 
         private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
-        // The shader clips a built-in gradient against _Cutoff: raising it fades the body out evenly,
-        // and vanilla (0.589) is already the most solid it gets. Fade 0..1 maps onto 0.589..1.
+        // The shader clips a built-in gradient against _Cutoff: raising it fades the body out evenly.
+        // Measured in-game: vanilla 0.589 is the most solid it gets, nothing changes below it,
+        // 0.62 is still faintly visible and 0.63 is gone. Fade 0..1 maps onto that band.
         private static readonly int CutoffId = Shader.PropertyToID("_Cutoff");
         private const float VanillaCutoff = 0.589f;
+        private const float InvisibleCutoff = 0.63f;
 
         private static readonly string[] PropertiesOfInterest =
         {
@@ -124,7 +126,7 @@ namespace SpiritAnimism
 
                     if (material.HasProperty(CutoffId))
                     {
-                        material.SetFloat(CutoffId, Mathf.Lerp(VanillaCutoff, 1f, owner.Fade.Value));
+                        material.SetFloat(CutoffId, Mathf.Lerp(VanillaCutoff, InvisibleCutoff, owner.Fade.Value));
                     }
                 }
             }
