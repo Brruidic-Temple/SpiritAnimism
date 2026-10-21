@@ -12,7 +12,6 @@ namespace SpiritAnimism
         public readonly string ConfigKey;
         public readonly string MaterialPrefix;
         public ConfigEntry<Color> Tint;
-        public ConfigEntry<float> Fade;
 
         public SummonType(string prefabName, string configKey, string materialPrefix)
         {
@@ -37,12 +36,9 @@ namespace SpiritAnimism
         };
 
         private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
-        // The shader clips a built-in gradient against _Cutoff: raising it fades the body out evenly.
-        // Measured in-game: vanilla 0.589 is the most solid it gets, nothing changes below it,
-        // 0.62 is still faintly visible and 0.63 is gone. Fade 0..1 maps onto that band.
-        private static readonly int CutoffId = Shader.PropertyToID("_Cutoff");
-        private const float VanillaCutoff = 0.589f;
-        private const float InvisibleCutoff = 0.63f;
+        // Opacity is not adjustable on this shader. Its only transparency knob is _Cutoff (vanilla 0.589),
+        // which measured in-game as a hard threshold: identical up to 0.62, gone from 0.63, nothing between.
+        // Anything more solid or any real fade needs a different body material (v1 work).
 
         private static readonly string[] PropertiesOfInterest =
         {
@@ -123,11 +119,6 @@ namespace SpiritAnimism
                     }
 
                     material.SetColor(TintColorId, MatchIntensity(owner.Tint.Value, original));
-
-                    if (material.HasProperty(CutoffId))
-                    {
-                        material.SetFloat(CutoffId, Mathf.Lerp(VanillaCutoff, InvisibleCutoff, owner.Fade.Value));
-                    }
                 }
             }
         }

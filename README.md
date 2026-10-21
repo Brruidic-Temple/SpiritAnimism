@@ -4,8 +4,8 @@ Valheim mod by Brruid. Changes how the animals summoned by the Spirit Caller sta
 
 ## Status
 
-Alpha. Client-side only. A configurable tint colour and fade per summon type (bear, moose,
-boar, wolf), reloaded live when the config file changes.
+Alpha. Client-side only. A configurable tint colour per summon type (bear, moose, boar,
+wolf), reloaded live when the config file changes.
 
 ## Config
 
@@ -15,13 +15,13 @@ boar, wolf), reloaded live when the config file changes.
   `_TintColor` of its `Custom/Fallen Warrior` material). Default `40C8FF` (ice blue) for all.
   Vanilla brightness and transparency are kept; horns, tusks and saddle stay vanilla.
 
-Section `[Fade]`:
-
-- `Bear`, `Moose`, `Boar`, `Wolf` - extra transparency, 0 (vanilla) to 1 (invisible). The spirit
-  shader fades by raising its `_Cutoff` across its measured 0.589 to 0.63 band; vanilla is
-  already its most solid setting.
-
 Edits to the file are picked up while the game runs, including on summons already out.
+
+## Known limitations
+
+- Opacity is not adjustable. The vanilla spirit shader (`Custom/Fallen Warrior`) exposes no alpha
+  or blend settings; its `_Cutoff` behaves as a hard visible/invisible threshold (measured: unchanged
+  up to 0.62, gone from 0.63). Making summons more solid needs a different body material.
 
 ## Building
 

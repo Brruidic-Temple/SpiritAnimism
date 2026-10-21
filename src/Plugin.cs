@@ -33,15 +33,6 @@ namespace SpiritAnimism
                     iceBlue,
                     $"Colour of the summoned {summon.ConfigKey.ToLower()}'s spirit body (hex RRGGBBAA; alpha is ignored, vanilla brightness and transparency are kept).");
                 summon.Tint.SettingChanged += (_, _) => SpiritTint.ApplyEverywhere();
-
-                summon.Fade = Config.Bind(
-                    "Fade",
-                    summon.ConfigKey,
-                    0f,
-                    new ConfigDescription(
-                        $"How much more transparent than vanilla the summoned {summon.ConfigKey.ToLower()} is: 0 = vanilla, 1 = invisible. The shader cannot be made more solid than vanilla.",
-                        new AcceptableValueRange<float>(0f, 1f)));
-                summon.Fade.SettingChanged += (_, _) => SpiritTint.ApplyEverywhere();
             }
 
             _configLastWrite = File.GetLastWriteTimeUtc(Config.ConfigFilePath);
