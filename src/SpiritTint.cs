@@ -188,9 +188,7 @@ namespace SpiritAnimism
                 }
                 parts.Add($"{name}:{type}={value}");
             }
-            Plugin.Log.LogInfo($"  {material.name} keywords=[{string.Join(",", material.shaderKeywords)}] " +
-                               $"blend src={material.GetInt("_SrcBlend")} dst={material.GetInt("_DstBlend")} " +
-                               $"zwrite={material.GetInt("_ZWrite")} | {string.Join(" ", parts)}");
+            Plugin.Log.LogInfo($"  {material.name} keywords=[{string.Join(",", material.shaderKeywords)}] | {string.Join(" ", parts)}");
         }
     }
 }
