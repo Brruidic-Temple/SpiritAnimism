@@ -17,6 +17,7 @@ namespace SpiritAnimism
         internal static ManualLogSource Log;
 
         internal static ConfigEntry<KeyboardShortcut> DismissKey;
+        internal static ConfigEntry<bool> DumpLiveSummons;
 
         // BepInEx does not watch config files, so poll the file's timestamp to reload edits made while playing.
         private const float ConfigPollSeconds = 1f;
@@ -60,6 +61,18 @@ namespace SpiritAnimism
                 "Key",
                 new KeyboardShortcut(KeyCode.X, KeyCode.LeftAlt),
                 "Dismisses all spirit summons you called, with the vanilla despawn effect.");
+
+            DumpLiveSummons = Config.Bind(
+                "Debug",
+                "DumpLiveSummons",
+                false,
+                "Set to true to write the visual setup of every summon currently standing to the BepInEx log. Resets itself to false.");
+            DumpLiveSummons.SettingChanged += (_, _) =>
+            {
+                if (!DumpLiveSummons.Value) return;
+                DebugDump.LiveSummons();
+                DumpLiveSummons.Value = false;
+            };
 
             _configLastWrite = File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
