@@ -21,6 +21,10 @@ your summons.
 - `[GlowArea]` - `Body` (whole body) or `Eyes` (the animal's own eye mask, in your tint). Only the
   moose has a usable eye mask. Wolf eyes glow by themselves, from the wolf's texture. The bear's
   mask marks a hidden spot and the boar has none, so `Eyes` lights nothing visible on them.
+- `[Pick]` - with the Spirit Caller in hand, the secondary attack (middle mouse by default) cycles
+  which animal the next cast summons; a centre message names it. `Order` is the cycle (default
+  `Random, Bear, Moose, Boar, Wolf`), `Current` is the remembered pick, and `SkipFull` skips kinds
+  already at your staff's limit. If PickYourSpirit is also installed, this picker switches itself off.
 - `[Dismiss]` `Key` - hotkey that dismisses every spirit summon you called, with the vanilla
   despawn effect. Default `LeftAlt + X`. Ignored while the console, chat or menu is open.
 

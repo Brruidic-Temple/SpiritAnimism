@@ -63,6 +63,8 @@ namespace SpiritAnimism
                 summon.Area.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
             }
 
+            Picker.Init(Config);
+
             DismissKey = Config.Bind(
                 "Dismiss",
                 "Key",
