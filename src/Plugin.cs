@@ -59,7 +59,7 @@ namespace SpiritAnimism
                     "GlowArea",
                     summon.ConfigKey,
                     GlowArea.Body,
-                    $"Where the Natural-look {animal} glows. Body = whole body. Eyes = only the animal's own eye mask (bear and moose have one; wolf eyes glow on their own anyway; boar has none).");
+                    $"Where the Natural-look {animal} glows. Body = whole body. Eyes = only the animal's own eye mask (only the moose has a visible one; wolf eyes glow on their own anyway; bear and boar show nothing).");
                 summon.Area.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
             }
 

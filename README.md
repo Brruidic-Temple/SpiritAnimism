@@ -18,15 +18,20 @@ your summons.
 - `[Tint]` - hex colour. Spirit look: the body colour, vanilla brightness and transparency kept.
   Natural look: the glow colour. Default `40C8FF` (ice blue).
 - `[Glow]` - glow strength for the Natural look, 0 to 5. 0 is a plain wild animal. Default 0.3.
-- `[GlowArea]` - `Body` (whole body) or `Eyes` (the animal's own eye mask, in your tint). Bear and
-  moose have an eye mask. Wolf eyes glow by themselves, from the wolf's texture. Boar has no eye
-  mask, so `Eyes` lights nothing on it.
+- `[GlowArea]` - `Body` (whole body) or `Eyes` (the animal's own eye mask, in your tint). Only the
+  moose has a usable eye mask. Wolf eyes glow by themselves, from the wolf's texture. The bear's
+  mask marks a hidden spot and the boar has none, so `Eyes` lights nothing visible on them.
 - `[Dismiss]` `Key` - hotkey that dismisses every spirit summon you called, with the vanilla
   despawn effect. Default `LeftAlt + X`. Ignored while the console, chat or menu is open.
 
 Edits to the file are picked up while the game runs, including on summons already out.
 
 ## Known limitations
+
+- Eye glow is only controllable on the moose. Measured from the game's own masks: the moose mask
+  lights a tiny patch at full strength (the eyes); the bear mask lights a small patch at half
+  strength that is not visible on the model; the boar has no mask; the wolf's eye glow is baked
+  into its texture and always on.
 
 - Opacity is not adjustable. The vanilla spirit shader (`Custom/Fallen Warrior`) exposes no alpha
   or blend settings; its `_Cutoff` behaves as a hard visible/invisible threshold (measured: unchanged
