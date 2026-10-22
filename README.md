@@ -18,6 +18,9 @@ your summons.
 - `[Tint]` - hex colour. Spirit look: the body colour, vanilla brightness and transparency kept.
   Natural look: the glow colour. Default `40C8FF` (ice blue).
 - `[Glow]` - glow strength for the Natural look, 0 to 5. 0 is a plain wild animal. Default 0.3.
+- `[GlowArea]` - `Body` (whole body) or `Eyes` (the animal's own eye mask, in your tint). Bear and
+  moose have an eye mask. Wolf eyes glow by themselves, from the wolf's texture. Boar has no eye
+  mask, so `Eyes` lights nothing on it.
 - `[Dismiss]` `Key` - hotkey that dismisses every spirit summon you called, with the vanilla
   despawn effect. Default `LeftAlt + X`. Ignored while the console, chat or menu is open.
 

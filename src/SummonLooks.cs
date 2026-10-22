@@ -12,6 +12,12 @@ namespace SpiritAnimism
         Natural,
     }
 
+    internal enum GlowArea
+    {
+        Body,
+        Eyes,
+    }
+
     internal sealed class SummonType
     {
         public readonly string PrefabName;
@@ -22,6 +28,8 @@ namespace SpiritAnimism
         public ConfigEntry<Look> Look;
         public ConfigEntry<Color> Tint;
         public ConfigEntry<float> Glow;
+        public ConfigEntry<GlowArea> Area;
+        public bool WarnedNoEyeMask;
 
         // Captured from the summon prefab the first time its spirit body material is seen.
         public Material SpiritMaterial;
@@ -162,9 +170,18 @@ namespace SpiritAnimism
             var natural = NaturalMaterialFor(species);
             if (natural == null) return species.SpiritMaterial;
 
-            if (species.Glow.Value > 0f)
+            // Eyes = the wild material's own emission mask (bear and moose have one marking the eyes).
+            // Wolf eyes glow from the texture itself regardless; boar has no mask, so Eyes glows nothing.
+            var eyesWithoutMask = species.Area.Value == GlowArea.Eyes && species.VanillaEmissionMap == null;
+            if (eyesWithoutMask && !species.WarnedNoEyeMask)
             {
-                natural.SetTexture(EmissionMapId, Texture2D.whiteTexture);
+                species.WarnedNoEyeMask = true;
+                Plugin.Log.LogWarning($"{species.ConfigKey} has no eye mask; GlowArea Eyes lights nothing on it");
+            }
+
+            if (species.Glow.Value > 0f && !eyesWithoutMask)
+            {
+                natural.SetTexture(EmissionMapId, species.Area.Value == GlowArea.Body ? Texture2D.whiteTexture : species.VanillaEmissionMap);
                 natural.SetColor(EmissionColorId, new Color(tint.r, tint.g, tint.b, 1f) * species.Glow.Value);
             }
             else

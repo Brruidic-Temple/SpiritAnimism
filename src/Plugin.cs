@@ -54,6 +54,13 @@ namespace SpiritAnimism
                         $"Glow strength of the Natural-look {animal}, in the tint colour. 0 = no glow, plain wild animal.",
                         new AcceptableValueRange<float>(0f, 5f)));
                 summon.Glow.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
+
+                summon.Area = Config.Bind(
+                    "GlowArea",
+                    summon.ConfigKey,
+                    GlowArea.Body,
+                    $"Where the Natural-look {animal} glows. Body = whole body. Eyes = only the animal's own eye mask (bear and moose have one; wolf eyes glow on their own anyway; boar has none).");
+                summon.Area.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
             }
 
             DismissKey = Config.Bind(
