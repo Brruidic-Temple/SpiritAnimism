@@ -139,7 +139,9 @@ namespace SpiritAnimism
             return true;
         }
 
-        // A plain sans font like the rest of the game's menus, not the pixel font the HUD counters use.
+        // The game's plain sans, not the pixel font its default settings point at.
+        private const string PreferredFont = "Valheim-AveriaSansLibre";
+
         private static bool PickFont()
         {
             var fonts = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
@@ -148,11 +150,7 @@ namespace SpiritAnimism
             foreach (var font in fonts)
             {
                 names.Add(font.name);
-                if (chosen == null && (font.name.IndexOf("Liberation", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                       font.name.IndexOf("Arial", System.StringComparison.OrdinalIgnoreCase) >= 0))
-                {
-                    chosen = font;
-                }
+                if (font.name == PreferredFont) chosen = font;
             }
             Plugin.Log.LogInfo($"TMP fonts available: {string.Join(", ", names)}");
 
