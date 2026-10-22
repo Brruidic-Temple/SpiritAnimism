@@ -38,7 +38,7 @@ namespace SpiritAnimism
                 "Pick",
                 "SkipFull",
                 true,
-                "Skip animals you already have at your staff's limit when cycling, so a pick never sends your oldest one home.");
+                "Skip animals you already have at your staff's limit, both when cycling and in the Random roll, so a cast never sends your oldest one home. When every kind is full the game's own roll applies.");
 
             if (Chainloader.PluginInfos.ContainsKey(OtherPickerGuid))
             {
@@ -118,6 +118,29 @@ namespace SpiritAnimism
             return max > 0 && count >= max;
         }
 
+        // For a Random cast: the staff's spawn list without the kinds already at the limit, so the
+        // game's roll lands on something with room. If nothing has room, the vanilla list stands.
+        public static GameObject[] WithRoom(GameObject[] spawnList)
+        {
+            var withRoom = new List<GameObject>();
+            foreach (var prefab in spawnList)
+            {
+                if (prefab == null) continue;
+                var type = TypeOfPrefab(prefab.name);
+                if (type == null || !IsAtCap(type)) withRoom.Add(prefab);
+            }
+            return withRoom.Count > 0 && withRoom.Count < spawnList.Length ? withRoom.ToArray() : spawnList;
+        }
+
+        private static SummonType TypeOfPrefab(string prefabName)
+        {
+            foreach (var summon in SummonLooks.Summons)
+            {
+                if (summon.PrefabName == prefabName) return summon;
+            }
+            return null;
+        }
+
         private static List<string> Steps()
         {
             var steps = new List<string>();
@@ -154,8 +177,14 @@ namespace SpiritAnimism
         private static void Prefix(SpawnAbility __instance, Character owner, ItemDrop.ItemData item)
         {
             if (!Picker.Enabled || owner == null || owner != Player.m_localPlayer || !Picker.IsSpiritCaller(item)) return;
+            if (__instance.m_spawnPrefab == null) return;
+
             var type = Picker.CurrentType();
-            if (type == null || __instance.m_spawnPrefab == null) return;
+            if (type == null)
+            {
+                if (Picker.SkipFull.Value) __instance.m_spawnPrefab = Picker.WithRoom(__instance.m_spawnPrefab);
+                return;
+            }
 
             foreach (var prefab in __instance.m_spawnPrefab)
             {
