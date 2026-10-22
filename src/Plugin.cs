@@ -64,6 +64,7 @@ namespace SpiritAnimism
             }
 
             Picker.Init(Config);
+            SummonPanel.Init(Config);
 
             DismissKey = Config.Bind(
                 "Dismiss",
@@ -91,6 +92,7 @@ namespace SpiritAnimism
 
         private void Update()
         {
+            SummonPanel.Update();
             if (DismissKey.Value.IsDown() && Dismiss.InputIsFree()) Dismiss.MySummons();
 
             if (Time.unscaledTime < _nextConfigPoll) return;
