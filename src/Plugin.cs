@@ -37,14 +37,14 @@ namespace SpiritAnimism
                     summon.ConfigKey,
                     Look.Spirit,
                     $"How the summoned {animal} looks. Spirit = vanilla translucent ghost in your tint. Natural = the wild animal's own opaque body with a glow in your tint.");
-                summon.Look.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
+                summon.Look.SettingChanged += (_, _) => SummonLooks.Refresh();
 
                 summon.Tint = Config.Bind(
                     "Tint",
                     summon.ConfigKey,
                     iceBlue,
                     $"Colour of the summoned {animal}: the spirit body for the Spirit look, the glow for the Natural look (hex RRGGBBAA; alpha is ignored).");
-                summon.Tint.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
+                summon.Tint.SettingChanged += (_, _) => SummonLooks.Refresh();
 
                 summon.Glow = Config.Bind(
                     "Glow",
@@ -53,14 +53,14 @@ namespace SpiritAnimism
                     new ConfigDescription(
                         $"Glow strength of the Natural-look {animal}, in the tint colour. 0 = no glow, plain wild animal.",
                         new AcceptableValueRange<float>(0f, 5f)));
-                summon.Glow.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
+                summon.Glow.SettingChanged += (_, _) => SummonLooks.Refresh();
 
                 summon.Area = Config.Bind(
                     "GlowArea",
                     summon.ConfigKey,
                     GlowArea.Body,
                     $"Where the Natural-look {animal} glows. Body = whole body. Eyes = only the animal's own eye mask (only the moose has a visible one; wolf eyes glow on their own anyway; bear and boar show nothing).");
-                summon.Area.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
+                summon.Area.SettingChanged += (_, _) => SummonLooks.Refresh();
             }
 
             Picker.Init(Config);
@@ -92,6 +92,7 @@ namespace SpiritAnimism
 
         private void Update()
         {
+            SummonLooks.Update();
             SummonPanel.Update();
             if (DismissKey.Value.IsDown() && Dismiss.InputIsFree()) Dismiss.MySummons();
 
@@ -107,9 +108,4 @@ namespace SpiritAnimism
         }
     }
 
-    [HarmonyPatch(typeof(ZNetScene), "Awake")]
-    internal static class ZNetSceneAwakePatch
-    {
-        private static void Postfix() => SummonLooks.ApplyToPrefabs();
-    }
 }

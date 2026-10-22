@@ -7,6 +7,8 @@ namespace SpiritAnimism
     // materials with emission settings, lights, and level effects. Triggered from the config file.
     internal static class DebugDump
     {
+        private static readonly int LookKey = "SpiritAnimism.Look".GetStableHashCode();
+
         public static void LiveSummons()
         {
             var count = 0;
@@ -15,7 +17,12 @@ namespace SpiritAnimism
                 if (character == null || !SummonLooks.IsSummon(character.gameObject.name)) continue;
                 count++;
                 var root = character.gameObject;
-                Plugin.Log.LogInfo($"[dump] {root.name} level={character.GetLevel()} pos={root.transform.position}");
+                var nview = character.GetComponent<ZNetView>();
+                var zdo = nview != null && nview.IsValid() ? nview.GetZDO() : null;
+                var follow = zdo != null ? zdo.GetString(ZDOVars.s_follow, "") : "?";
+                var stored = zdo != null ? zdo.GetString(LookKey, "") : "?";
+                var owner = nview != null && nview.IsValid() ? nview.IsOwner().ToString() : "?";
+                Plugin.Log.LogInfo($"[dump] {root.name} level={character.GetLevel()} pos={root.transform.position} follow={follow} owner={owner} look=\"{stored}\"");
 
                 foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
                 {

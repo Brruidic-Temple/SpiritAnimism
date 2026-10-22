@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using BepInEx.Configuration;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace SpiritAnimism
 {
@@ -29,16 +29,15 @@ namespace SpiritAnimism
         public ConfigEntry<Color> Tint;
         public ConfigEntry<float> Glow;
         public ConfigEntry<GlowArea> Area;
-        public bool WarnedNoEyeMask;
 
-        // Captured from the summon prefab the first time its spirit body material is seen.
+        // Shared assets, looked up once: the summon's spirit body material and the wild animal's body material.
         public Material SpiritMaterial;
         public Color VanillaTint;
-        // A private copy of the wild animal's body material, created on first use.
-        public Material NaturalMaterial;
-        public bool NaturalLookedUp;
+        public Material WildMaterial;
         public Texture VanillaEmissionMap;
         public Color VanillaEmissionColor;
+        public bool AssetsLookedUp;
+        public bool WarnedNoEyeMask;
 
         public SummonType(string prefabName, string wildPrefabName, string configKey, string materialPrefix)
         {
@@ -49,12 +48,41 @@ namespace SpiritAnimism
         }
     }
 
+    // One summon's appearance, as written into its network data by the summoner and read by every client.
+    internal struct LookSpec
+    {
+        private const string Version = "1";
+
+        public Look Look;
+        public Color Tint;
+        public float Glow;
+        public GlowArea Area;
+
+        public static LookSpec FromConfig(SummonType type) => new LookSpec
+        {
+            Look = type.Look.Value, Tint = type.Tint.Value, Glow = type.Glow.Value, Area = type.Area.Value,
+        };
+
+        public string Serialize() =>
+            $"{Version};{Look};{ColorUtility.ToHtmlStringRGB(Tint)};{Glow.ToString("0.###", CultureInfo.InvariantCulture)};{Area}";
+
+        public static bool TryParse(string text, out LookSpec spec)
+        {
+            spec = default;
+            if (string.IsNullOrEmpty(text)) return false;
+            var parts = text.Split(';');
+            if (parts.Length != 5 || parts[0] != Version) return false;
+            if (!Enum.TryParse(parts[1], out spec.Look)) return false;
+            if (!ColorUtility.TryParseHtmlString("#" + parts[2], out spec.Tint)) return false;
+            if (!float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out spec.Glow)) return false;
+            return Enum.TryParse(parts[4], out spec.Area);
+        }
+    }
+
     internal static class SummonLooks
     {
         // The spirit body materials (<animal>_mat_spiritcaller, shader Custom/Fallen Warrior) carry the
         // pink as an HDR _TintColor. Opaque parts (horns, tusks, saddle) use _Color and are left alone.
-        // Materials are shared assets and the bear prefab also holds the moose material on a hidden mesh,
-        // so the species is chosen by material name, never by the prefab the renderer was found on.
         internal static readonly SummonType[] Summons =
         {
             new SummonType("Bjorn_spiritcaller", "Bjorn", "Bear", "Bjorn_"),
@@ -63,234 +91,216 @@ namespace SpiritAnimism
             new SummonType("Wolf_spiritcaller", "Wolf", "Wolf", "Wolf_"),
         };
 
-        // Opacity is not adjustable on the spirit shader. Its only transparency knob is _Cutoff (vanilla
-        // 0.589), which measured in-game as a hard threshold: identical up to 0.62, gone from 0.63.
-        private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
-        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+        internal static readonly int TintColorId = Shader.PropertyToID("_TintColor");
+        internal static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+        internal static readonly int EmissionMapId = Shader.PropertyToID("_EmissionMap");
         private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
-        // Custom/Creature multiplies _EmissionColor by _EmissionMap. Bear and moose ship a mask that is
-        // white only at the eyes, so a glow needs an all-white mask to cover the body.
-        private static readonly int EmissionMapId = Shader.PropertyToID("_EmissionMap");
 
-        private static readonly string[] PropertiesOfInterest =
+        // Custom key in each summon's network data. The game replicates it to every client and into
+        // the save; a vanilla server relays it; clients without the mod ignore it.
+        private static readonly int LookKey = "SpiritAnimism.Look".GetStableHashCode();
+
+        private const float RefreshSeconds = 0.25f;
+        private static float _nextRefresh;
+
+        public static void Refresh() => _nextRefresh = 0f;
+
+        public static bool IsSummon(string objectName) => SpeciesOf(objectName) != null;
+
+        public static SummonType SpeciesOf(string objectName)
         {
-            "_Color", "_EmissionColor", "_EmissionMap", "_TintColor", "_Hue", "_Saturation", "_Value", "_MainTex",
-        };
-
-        private static readonly HashSet<Material> Described = new HashSet<Material>();
-
-        public static void ApplyToPrefabs()
-        {
-            if (ZNetScene.instance == null) return;
-
             foreach (var summon in Summons)
             {
-                var prefab = ZNetScene.instance.GetPrefab(summon.PrefabName);
-                if (prefab == null)
-                {
-                    Plugin.Log.LogWarning($"Prefab {summon.PrefabName} not found");
-                    continue;
-                }
-                Apply(prefab, summon.PrefabName);
+                if (objectName.StartsWith(summon.PrefabName)) return summon;
             }
+            return null;
         }
 
-        public static void ApplyEverywhere()
+        // Every summon in the world: write my look onto the ones I own, then show each one the look its
+        // network data says, my config for my own while the write is in flight, vanilla for the rest.
+        public static void Update()
         {
-            ApplyToPrefabs();
+            if (Time.unscaledTime < _nextRefresh) return;
+            _nextRefresh = Time.unscaledTime + RefreshSeconds;
+            if (ZNetScene.instance == null) return;
+
+            var player = Player.m_localPlayer;
+            var playerName = player != null ? player.GetPlayerName() : null;
 
             foreach (var character in Character.GetAllCharacters())
             {
                 if (character == null) continue;
-                var name = character.gameObject.name;
-                if (IsSummon(name)) Apply(character.gameObject, name);
-            }
-        }
+                var species = SpeciesOf(character.gameObject.name);
+                if (species == null || !LookUpAssets(species)) continue;
 
-        public static bool IsSummon(string objectName)
-        {
-            foreach (var summon in Summons)
-            {
-                if (objectName.StartsWith(summon.PrefabName)) return true;
-            }
-            return false;
-        }
+                var nview = character.GetComponent<ZNetView>();
+                if (nview == null || !nview.IsValid()) continue;
+                var zdo = nview.GetZDO();
+                var mine = playerName != null && zdo.GetString(ZDOVars.s_follow, "") == playerName;
 
-        private static SummonType SpeciesOf(Material material)
-        {
-            foreach (var summon in Summons)
-            {
-                if (material == summon.NaturalMaterial) return summon;
-                if (material.HasProperty(TintColorId) &&
-                    material.name.StartsWith(summon.MaterialPrefix, StringComparison.OrdinalIgnoreCase)) return summon;
-            }
-            return null;
-        }
-
-        private static void Apply(GameObject root, string label)
-        {
-            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
-            {
-                var materials = renderer.sharedMaterials;
-                var changed = false;
-
-                for (var i = 0; i < materials.Length; i++)
+                if (mine && nview.IsOwner())
                 {
-                    var material = materials[i];
-                    if (material == null) continue;
-                    Describe(material, renderer, label);
-
-                    var species = SpeciesOf(material);
-                    if (species == null) continue;
-
-                    if (species.SpiritMaterial == null && material != species.NaturalMaterial)
-                    {
-                        species.SpiritMaterial = material;
-                        species.VanillaTint = material.GetColor(TintColorId);
-                    }
-
-                    var desired = DesiredMaterial(species);
-                    if (desired == null || desired == material) continue;
-                    materials[i] = desired;
-                    changed = true;
+                    var desired = LookSpec.FromConfig(species).Serialize();
+                    if (zdo.GetString(LookKey, "") != desired) zdo.Set(LookKey, desired);
                 }
 
-                if (changed) renderer.sharedMaterials = materials;
+                LookSpec? spec = null;
+                if (LookSpec.TryParse(zdo.GetString(LookKey, ""), out var stored)) spec = stored;
+                else if (mine) spec = LookSpec.FromConfig(species);
+
+                var look = character.GetComponent<SummonLook>() ?? character.gameObject.AddComponent<SummonLook>();
+                look.Apply(species, spec);
             }
         }
 
-        private static Material DesiredMaterial(SummonType species)
+        private static bool LookUpAssets(SummonType species)
         {
-            if (species.SpiritMaterial == null) return null;
-            var tint = species.Tint.Value;
-            species.SpiritMaterial.SetColor(TintColorId, MatchIntensity(tint, species.VanillaTint));
+            if (species.AssetsLookedUp) return species.SpiritMaterial != null;
+            species.AssetsLookedUp = true;
 
-            if (species.Look.Value == Look.Spirit) return species.SpiritMaterial;
-
-            var natural = NaturalMaterialFor(species);
-            if (natural == null) return species.SpiritMaterial;
-
-            // Eyes = the wild material's own emission mask (bear and moose have one marking the eyes).
-            // Wolf eyes glow from the texture itself regardless; boar has no mask, so Eyes glows nothing.
-            var eyesWithoutMask = species.Area.Value == GlowArea.Eyes && species.VanillaEmissionMap == null;
-            if (eyesWithoutMask && !species.WarnedNoEyeMask)
+            var prefab = ZNetScene.instance.GetPrefab(species.PrefabName);
+            if (prefab == null)
             {
-                species.WarnedNoEyeMask = true;
-                Plugin.Log.LogWarning($"{species.ConfigKey} has no eye mask; GlowArea Eyes lights nothing on it");
+                Plugin.Log.LogWarning($"Prefab {species.PrefabName} not found");
+                return false;
             }
-
-            if (species.Glow.Value > 0f && !eyesWithoutMask)
-            {
-                natural.SetTexture(EmissionMapId, species.Area.Value == GlowArea.Body ? Texture2D.whiteTexture : species.VanillaEmissionMap);
-                natural.SetColor(EmissionColorId, new Color(tint.r, tint.g, tint.b, 1f) * species.Glow.Value);
-            }
-            else
-            {
-                natural.SetTexture(EmissionMapId, species.VanillaEmissionMap);
-                natural.SetColor(EmissionColorId, species.VanillaEmissionColor);
-            }
-            return natural;
-        }
-
-        // Finds the wild animal's body material by the body texture the spirit material already uses,
-        // and keeps a private copy so wild animals are never affected by the glow.
-        private static Material NaturalMaterialFor(SummonType species)
-        {
-            if (species.NaturalLookedUp) return species.NaturalMaterial;
-            species.NaturalLookedUp = true;
-
-            var wild = ZNetScene.instance.GetPrefab(species.WildPrefabName);
-            if (wild == null)
-            {
-                Plugin.Log.LogWarning($"Wild prefab {species.WildPrefabName} not found; {species.ConfigKey} keeps the spirit look");
-                return null;
-            }
-
-            var bodyTexture = species.SpiritMaterial.GetTexture(MainTexId);
-            var bodyTextureName = bodyTexture != null ? bodyTexture.name : null;
-
-            foreach (var renderer in wild.GetComponentsInChildren<Renderer>(true))
+            foreach (var renderer in prefab.GetComponentsInChildren<Renderer>(true))
             {
                 foreach (var material in renderer.sharedMaterials)
                 {
-                    if (material == null) continue;
-                    Describe(material, renderer, species.WildPrefabName);
-                    if (material.HasProperty(TintColorId) || !material.HasProperty(MainTexId)) continue;
-                    var texture = material.GetTexture(MainTexId);
-                    if (texture == null || texture.name != bodyTextureName) continue;
-
-                    species.NaturalMaterial = new Material(material) { name = material.name + "_spiritanimism" };
-                    species.NaturalMaterial.EnableKeyword("_EMISSION");
-                    species.VanillaEmissionMap = material.HasProperty(EmissionMapId) ? material.GetTexture(EmissionMapId) : null;
-                    species.VanillaEmissionColor = material.GetColor(EmissionColorId);
-                    Plugin.Log.LogInfo($"{species.ConfigKey}: natural material from {species.WildPrefabName}/{renderer.name}/{material.name}");
-                    return species.NaturalMaterial;
+                    if (material == null || !material.HasProperty(TintColorId)) continue;
+                    if (!material.name.StartsWith(species.MaterialPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+                    species.SpiritMaterial = material;
+                    species.VanillaTint = material.GetColor(TintColorId);
+                    break;
                 }
+                if (species.SpiritMaterial != null) break;
+            }
+            if (species.SpiritMaterial == null)
+            {
+                Plugin.Log.LogWarning($"No spirit body material on {species.PrefabName}");
+                return false;
             }
 
-            Plugin.Log.LogWarning($"No body material with texture {bodyTextureName} on {species.WildPrefabName}; {species.ConfigKey} keeps the spirit look");
-            return null;
+            // The wild animal's body material is the one sharing the spirit material's body texture.
+            var wild = ZNetScene.instance.GetPrefab(species.WildPrefabName);
+            var bodyTexture = species.SpiritMaterial.GetTexture(MainTexId);
+            var bodyTextureName = bodyTexture != null ? bodyTexture.name : null;
+            if (wild != null)
+            {
+                foreach (var renderer in wild.GetComponentsInChildren<Renderer>(true))
+                {
+                    foreach (var material in renderer.sharedMaterials)
+                    {
+                        if (material == null || material.HasProperty(TintColorId) || !material.HasProperty(MainTexId)) continue;
+                        var texture = material.GetTexture(MainTexId);
+                        if (texture == null || texture.name != bodyTextureName) continue;
+                        species.WildMaterial = material;
+                        species.VanillaEmissionMap = material.HasProperty(EmissionMapId) ? material.GetTexture(EmissionMapId) : null;
+                        species.VanillaEmissionColor = material.GetColor(EmissionColorId);
+                        break;
+                    }
+                    if (species.WildMaterial != null) break;
+                }
+            }
+            if (species.WildMaterial == null)
+            {
+                Plugin.Log.LogWarning($"No wild body material for {species.ConfigKey}; its Natural look falls back to Spirit");
+            }
+
+            Plugin.Log.LogInfo($"{species.ConfigKey}: spirit material {species.SpiritMaterial.name}, wild material {(species.WildMaterial != null ? species.WildMaterial.name : "none")}");
+            return true;
         }
 
         // Vanilla uses HDR values (peak channel ~3). Scale the chosen colour to the same peak so
-        // brightness stays vanilla and only the hue changes; keep vanilla alpha (the shader ignores it anyway).
-        private static Color MatchIntensity(Color tint, Color original)
+        // brightness stays vanilla and only the hue changes; keep vanilla alpha.
+        public static Color MatchIntensity(Color tint, Color original)
         {
             var originalPeak = Mathf.Max(original.r, original.g, original.b);
             var tintPeak = Mathf.Max(tint.r, tint.g, tint.b);
             var scale = tintPeak > 0f ? originalPeak / tintPeak : 1f;
             return new Color(tint.r * scale, tint.g * scale, tint.b * scale, original.a);
         }
+    }
 
-        private static void Describe(Material material, Renderer renderer, string label)
+    // Lives on each summon: owns that summon's private copies of the body materials, so two
+    // players' summons can look different on the same screen. Destroys them with the summon.
+    internal sealed class SummonLook : MonoBehaviour
+    {
+        private SummonType _species;
+        private string _applied;
+        private Material _spirit;
+        private Material _natural;
+
+        public void Apply(SummonType species, LookSpec? spec)
         {
-            if (!Described.Add(material)) return;
+            _species = species;
+            var key = spec.HasValue ? spec.Value.Serialize() : "vanilla";
+            if (key == _applied) return;
+            _applied = key;
 
-            var parts = new List<string>();
-            foreach (var property in PropertiesOfInterest)
+            var desired = Desired(spec);
+            foreach (var renderer in GetComponentsInChildren<Renderer>(true))
             {
-                if (!material.HasProperty(property)) continue;
-                var value = property == "_MainTex" || property == "_EmissionMap"
-                    ? (material.GetTexture(property) != null ? material.GetTexture(property).name : "null")
-                    : property == "_Hue" || property == "_Saturation" || property == "_Value"
-                        ? material.GetFloat(property).ToString("0.###")
-                        : material.GetColor(property).ToString();
-                parts.Add($"{property}={value}");
+                var materials = renderer.sharedMaterials;
+                var changed = false;
+                for (var i = 0; i < materials.Length; i++)
+                {
+                    var material = materials[i];
+                    if (material == null || !IsBodySlot(material) || material == desired) continue;
+                    materials[i] = desired;
+                    changed = true;
+                }
+                if (changed) renderer.sharedMaterials = materials;
             }
-
-            Plugin.Log.LogInfo(
-                $"[{label}] renderer={renderer.name} material={material.name} shader={material.shader.name} " +
-                $"queue={material.renderQueue} {string.Join(" ", parts)}");
-
-            if (material.HasProperty(TintColorId)) DescribeAllProperties(material);
         }
 
-        // Full dump of the spirit shader's properties.
-        private static void DescribeAllProperties(Material material)
+        private bool IsBodySlot(Material material) =>
+            material == _species.SpiritMaterial || material == _spirit || material == _natural;
+
+        private Material Desired(LookSpec? maybe)
         {
-            var shader = material.shader;
-            var parts = new List<string>();
-            for (var i = 0; i < shader.GetPropertyCount(); i++)
+            if (!maybe.HasValue) return _species.SpiritMaterial;
+            var spec = maybe.Value;
+
+            if (spec.Look == Look.Natural && _species.WildMaterial != null)
             {
-                var name = shader.GetPropertyName(i);
-                var type = shader.GetPropertyType(i);
-                string value;
-                switch (type)
+                if (_natural == null)
                 {
-                    case ShaderPropertyType.Color: value = material.GetColor(name).ToString(); break;
-                    case ShaderPropertyType.Vector: value = material.GetVector(name).ToString(); break;
-                    case ShaderPropertyType.Float:
-                    case ShaderPropertyType.Range: value = material.GetFloat(name).ToString("0.###"); break;
-                    case ShaderPropertyType.Int: value = material.GetInt(name).ToString(); break;
-                    case ShaderPropertyType.Texture:
-                        var texture = material.GetTexture(name);
-                        value = texture != null ? texture.name : "null";
-                        break;
-                    default: value = "?"; break;
+                    _natural = new Material(_species.WildMaterial) { name = _species.WildMaterial.name + "_spiritanimism" };
+                    _natural.EnableKeyword("_EMISSION");
                 }
-                parts.Add($"{name}:{type}={value}");
+                var eyesWithoutMask = spec.Area == GlowArea.Eyes && _species.VanillaEmissionMap == null;
+                if (eyesWithoutMask && !_species.WarnedNoEyeMask)
+                {
+                    _species.WarnedNoEyeMask = true;
+                    Plugin.Log.LogWarning($"{_species.ConfigKey} has no eye mask; GlowArea Eyes lights nothing on it");
+                }
+                if (spec.Glow > 0f && !eyesWithoutMask)
+                {
+                    _natural.SetTexture(SummonLooks.EmissionMapId, spec.Area == GlowArea.Body ? Texture2D.whiteTexture : _species.VanillaEmissionMap);
+                    _natural.SetColor(SummonLooks.EmissionColorId, new Color(spec.Tint.r, spec.Tint.g, spec.Tint.b, 1f) * spec.Glow);
+                }
+                else
+                {
+                    _natural.SetTexture(SummonLooks.EmissionMapId, _species.VanillaEmissionMap);
+                    _natural.SetColor(SummonLooks.EmissionColorId, _species.VanillaEmissionColor);
+                }
+                return _natural;
             }
-            Plugin.Log.LogInfo($"  {material.name} keywords=[{string.Join(",", material.shaderKeywords)}] | {string.Join(" ", parts)}");
+
+            if (_spirit == null)
+            {
+                _spirit = new Material(_species.SpiritMaterial) { name = _species.SpiritMaterial.name + "_spiritanimism" };
+            }
+            _spirit.SetColor(SummonLooks.TintColorId, SummonLooks.MatchIntensity(spec.Tint, _species.VanillaTint));
+            return _spirit;
+        }
+
+        private void OnDestroy()
+        {
+            if (_spirit != null) Destroy(_spirit);
+            if (_natural != null) Destroy(_natural);
         }
     }
 }

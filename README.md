@@ -4,9 +4,14 @@ Valheim mod by Brruid. Changes how the animals summoned by the Spirit Caller sta
 
 ## Status
 
-Pre-release. Client-side only. Per summon type (bear, moose, boar, wolf): a Spirit or Natural
-look, a tint colour and a glow, reloaded live when the config file changes. A hotkey dismisses
-your summons.
+Pre-release. Client-side; nothing to install on the server. Per summon type (bear, moose,
+boar, wolf): a Spirit or Natural look, a tint colour and a glow, reloaded live when the config
+file changes. A picker chooses what the staff summons next, a panel lists your summons, and a
+hotkey dismisses them.
+
+Your chosen look travels with each summon you call: other players running the mod see your
+look on your animals and theirs on their own. Summons called by players without the mod stay
+vanilla. Players without the mod see everything as vanilla.
 
 ## Config
 
