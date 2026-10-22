@@ -18,8 +18,9 @@ namespace SpiritAnimism
 
         private const float RefreshSeconds = 0.25f;
         private const float RowHeight = 32f;
+        private const float RowIndent = 32f;
         private const float BarWidth = 160f;
-        private const float BarHeight = 4f;
+        private const float BarHeight = 6f;
         private static readonly Color HeaderColor = new Color(0.94f, 0.76f, 0.35f);
         private static readonly Color NameColor = new Color(0.9f, 0.9f, 0.9f);
         private static readonly Color ActivityColor = new Color(0.65f, 0.65f, 0.65f);
@@ -70,7 +71,7 @@ namespace SpiritAnimism
             _root.SetActive(visible);
             if (!visible) return;
 
-            _header.text = $"SPIRITS [{summons.Count}]  <color=#FFFFFF>▸</color> {Picker.DisplayName(Picker.CurrentType())}";
+            _header.text = $"SPIRITS [{summons.Count}]  <color=#{ColorUtility.ToHtmlStringRGB(HeaderColor)}>▸ {Picker.DisplayName(Picker.CurrentType())}</color>";
             while (Rows.Count < summons.Count) Rows.Add(BuildRow(Rows.Count));
             for (var i = 0; i < Rows.Count; i++)
             {
@@ -123,15 +124,7 @@ namespace SpiritAnimism
 
         private static bool Build()
         {
-            var hudText = Hud.instance.m_rootObject.GetComponentInChildren<TMP_Text>(true);
-            if (hudText == null)
-            {
-                Plugin.Log.LogWarning("No HUD text found to borrow a font from; the summon panel is off");
-                Show.Value = false;
-                return false;
-            }
-            _font = hudText.font;
-            _fontMaterial = hudText.fontSharedMaterial;
+            if (!PickFont()) return false;
 
             _root = new GameObject("SpiritAnimismPanel", typeof(RectTransform));
             _root.transform.SetParent(Hud.instance.m_rootObject.transform, false);
@@ -139,10 +132,45 @@ namespace SpiritAnimism
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
             rect.sizeDelta = new Vector2(BarWidth, RowHeight);
 
-            _header = MakeText(_root.transform, "Header", 14f, HeaderColor, FontStyles.Bold);
+            _header = MakeText(_root.transform, "Header", 14f, NameColor, FontStyles.Bold);
             ((RectTransform)_header.transform).anchoredPosition = Vector2.zero;
 
             Place();
+            return true;
+        }
+
+        // A plain sans font like the rest of the game's menus, not the pixel font the HUD counters use.
+        private static bool PickFont()
+        {
+            var fonts = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
+            var names = new List<string>();
+            TMP_FontAsset chosen = null;
+            foreach (var font in fonts)
+            {
+                names.Add(font.name);
+                if (chosen == null && (font.name.IndexOf("Liberation", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                       font.name.IndexOf("Arial", System.StringComparison.OrdinalIgnoreCase) >= 0))
+                {
+                    chosen = font;
+                }
+            }
+            Plugin.Log.LogInfo($"TMP fonts available: {string.Join(", ", names)}");
+
+            if (chosen == null) chosen = TMP_Settings.defaultFontAsset;
+            if (chosen == null)
+            {
+                var hudText = Hud.instance.m_rootObject.GetComponentInChildren<TMP_Text>(true);
+                if (hudText != null) chosen = hudText.font;
+            }
+            if (chosen == null)
+            {
+                Plugin.Log.LogWarning("No font found for the summon panel; it is off");
+                Show.Value = false;
+                return false;
+            }
+            _font = chosen;
+            _fontMaterial = chosen.material;
+            Plugin.Log.LogInfo($"Summon panel font: {chosen.name}");
             return true;
         }
 
@@ -152,7 +180,7 @@ namespace SpiritAnimism
             row.Root.transform.SetParent(_root.transform, false);
             var rect = (RectTransform)row.Root.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0f, 1f);
-            rect.anchoredPosition = new Vector2(0f, -RowHeight * (index + 0.7f));
+            rect.anchoredPosition = new Vector2(RowIndent, -RowHeight * (index + 0.7f));
             rect.sizeDelta = new Vector2(BarWidth, RowHeight);
 
             row.Text = MakeText(row.Root.transform, "Text", 13f, NameColor, FontStyles.Normal);
