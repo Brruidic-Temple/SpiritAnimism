@@ -29,6 +29,8 @@ namespace SpiritAnimism
         // A private copy of the wild animal's body material, created on first use.
         public Material NaturalMaterial;
         public bool NaturalLookedUp;
+        public Texture VanillaEmissionMap;
+        public Color VanillaEmissionColor;
 
         public SummonType(string prefabName, string wildPrefabName, string configKey, string materialPrefix)
         {
@@ -58,10 +60,13 @@ namespace SpiritAnimism
         private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
         private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
         private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
+        // Custom/Creature multiplies _EmissionColor by _EmissionMap. Bear and moose ship a mask that is
+        // white only at the eyes, so a glow needs an all-white mask to cover the body.
+        private static readonly int EmissionMapId = Shader.PropertyToID("_EmissionMap");
 
         private static readonly string[] PropertiesOfInterest =
         {
-            "_Color", "_EmissionColor", "_TintColor", "_Hue", "_Saturation", "_Value", "_MainTex",
+            "_Color", "_EmissionColor", "_EmissionMap", "_TintColor", "_Hue", "_Saturation", "_Value", "_MainTex",
         };
 
         private static readonly HashSet<Material> Described = new HashSet<Material>();
@@ -156,7 +161,17 @@ namespace SpiritAnimism
 
             var natural = NaturalMaterialFor(species);
             if (natural == null) return species.SpiritMaterial;
-            natural.SetColor(EmissionColorId, new Color(tint.r, tint.g, tint.b, 1f) * species.Glow.Value);
+
+            if (species.Glow.Value > 0f)
+            {
+                natural.SetTexture(EmissionMapId, Texture2D.whiteTexture);
+                natural.SetColor(EmissionColorId, new Color(tint.r, tint.g, tint.b, 1f) * species.Glow.Value);
+            }
+            else
+            {
+                natural.SetTexture(EmissionMapId, species.VanillaEmissionMap);
+                natural.SetColor(EmissionColorId, species.VanillaEmissionColor);
+            }
             return natural;
         }
 
@@ -189,6 +204,8 @@ namespace SpiritAnimism
 
                     species.NaturalMaterial = new Material(material) { name = material.name + "_spiritanimism" };
                     species.NaturalMaterial.EnableKeyword("_EMISSION");
+                    species.VanillaEmissionMap = material.HasProperty(EmissionMapId) ? material.GetTexture(EmissionMapId) : null;
+                    species.VanillaEmissionColor = material.GetColor(EmissionColorId);
                     Plugin.Log.LogInfo($"{species.ConfigKey}: natural material from {species.WildPrefabName}/{renderer.name}/{material.name}");
                     return species.NaturalMaterial;
                 }
@@ -216,7 +233,7 @@ namespace SpiritAnimism
             foreach (var property in PropertiesOfInterest)
             {
                 if (!material.HasProperty(property)) continue;
-                var value = property == "_MainTex"
+                var value = property == "_MainTex" || property == "_EmissionMap"
                     ? (material.GetTexture(property) != null ? material.GetTexture(property).name : "null")
                     : property == "_Hue" || property == "_Saturation" || property == "_Value"
                         ? material.GetFloat(property).ToString("0.###")
