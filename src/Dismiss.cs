@@ -17,7 +17,7 @@ namespace SpiritAnimism
 
             foreach (var character in Character.GetAllCharacters())
             {
-                if (character == null || !SpiritTint.IsSummon(character.gameObject.name)) continue;
+                if (character == null || !SummonLooks.IsSummon(character.gameObject.name)) continue;
 
                 var nview = character.GetComponent<ZNetView>();
                 if (nview == null || !nview.IsValid()) continue;

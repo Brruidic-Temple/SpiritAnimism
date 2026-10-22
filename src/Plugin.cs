@@ -12,7 +12,7 @@ namespace SpiritAnimism
     {
         public const string Guid = "Brruid.SpiritAnimism";
         public const string Name = "SpiritAnimism";
-        public const string Version = "0.3.0";
+        public const string Version = "0.4.0";
 
         internal static ManualLogSource Log;
 
@@ -27,14 +27,32 @@ namespace SpiritAnimism
         {
             Log = Logger;
             var iceBlue = new Color(0.25f, 0.78f, 1f);
-            foreach (var summon in SpiritTint.Summons)
+            foreach (var summon in SummonLooks.Summons)
             {
+                var animal = summon.ConfigKey.ToLower();
+
+                summon.Look = Config.Bind(
+                    "Look",
+                    summon.ConfigKey,
+                    Look.Spirit,
+                    $"How the summoned {animal} looks. Spirit = vanilla translucent ghost in your tint. Natural = the wild animal's own opaque body with a glow in your tint.");
+                summon.Look.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
+
                 summon.Tint = Config.Bind(
                     "Tint",
                     summon.ConfigKey,
                     iceBlue,
-                    $"Colour of the summoned {summon.ConfigKey.ToLower()}'s spirit body (hex RRGGBBAA; alpha is ignored, vanilla brightness and transparency are kept).");
-                summon.Tint.SettingChanged += (_, _) => SpiritTint.ApplyEverywhere();
+                    $"Colour of the summoned {animal}: the spirit body for the Spirit look, the glow for the Natural look (hex RRGGBBAA; alpha is ignored).");
+                summon.Tint.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
+
+                summon.Glow = Config.Bind(
+                    "Glow",
+                    summon.ConfigKey,
+                    0.3f,
+                    new ConfigDescription(
+                        $"Glow strength of the Natural-look {animal}, in the tint colour. 0 = no glow, plain wild animal.",
+                        new AcceptableValueRange<float>(0f, 5f)));
+                summon.Glow.SettingChanged += (_, _) => SummonLooks.ApplyEverywhere();
             }
 
             DismissKey = Config.Bind(
@@ -68,6 +86,6 @@ namespace SpiritAnimism
     [HarmonyPatch(typeof(ZNetScene), "Awake")]
     internal static class ZNetSceneAwakePatch
     {
-        private static void Postfix() => SpiritTint.ApplyToPrefabs();
+        private static void Postfix() => SummonLooks.ApplyToPrefabs();
     }
 }

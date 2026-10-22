@@ -5,7 +5,7 @@
     <LangVersion>10</LangVersion>
     <AssemblyName>SpiritAnimism</AssemblyName>
     <RootNamespace>SpiritAnimism</RootNamespace>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Authors>Brruid</Authors>
     <Nullable>disable</Nullable>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>

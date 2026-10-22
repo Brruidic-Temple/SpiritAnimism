@@ -6,46 +6,64 @@ using UnityEngine.Rendering;
 
 namespace SpiritAnimism
 {
+    internal enum Look
+    {
+        Spirit,
+        Natural,
+    }
+
     internal sealed class SummonType
     {
         public readonly string PrefabName;
+        public readonly string WildPrefabName;
         public readonly string ConfigKey;
         public readonly string MaterialPrefix;
-        public ConfigEntry<Color> Tint;
 
-        public SummonType(string prefabName, string configKey, string materialPrefix)
+        public ConfigEntry<Look> Look;
+        public ConfigEntry<Color> Tint;
+        public ConfigEntry<float> Glow;
+
+        // Captured from the summon prefab the first time its spirit body material is seen.
+        public Material SpiritMaterial;
+        public Color VanillaTint;
+        // A private copy of the wild animal's body material, created on first use.
+        public Material NaturalMaterial;
+        public bool NaturalLookedUp;
+
+        public SummonType(string prefabName, string wildPrefabName, string configKey, string materialPrefix)
         {
             PrefabName = prefabName;
+            WildPrefabName = wildPrefabName;
             ConfigKey = configKey;
             MaterialPrefix = materialPrefix;
         }
     }
 
-    internal static class SpiritTint
+    internal static class SummonLooks
     {
         // The spirit body materials (<animal>_mat_spiritcaller, shader Custom/Fallen Warrior) carry the
         // pink as an HDR _TintColor. Opaque parts (horns, tusks, saddle) use _Color and are left alone.
         // Materials are shared assets and the bear prefab also holds the moose material on a hidden mesh,
-        // so the colour is chosen by material name, never by the prefab the renderer was found on.
+        // so the species is chosen by material name, never by the prefab the renderer was found on.
         internal static readonly SummonType[] Summons =
         {
-            new SummonType("Bjorn_spiritcaller", "Bear", "Bjorn_"),
-            new SummonType("Moose_spiritcaller", "Moose", "Moose_"),
-            new SummonType("Boar_spiritcaller", "Boar", "Boar_"),
-            new SummonType("Wolf_spiritcaller", "Wolf", "Wolf_"),
+            new SummonType("Bjorn_spiritcaller", "Bjorn", "Bear", "Bjorn_"),
+            new SummonType("Moose_spiritcaller", "Moose", "Moose", "Moose_"),
+            new SummonType("Boar_spiritcaller", "Boar", "Boar", "Boar_"),
+            new SummonType("Wolf_spiritcaller", "Wolf", "Wolf", "Wolf_"),
         };
 
+        // Opacity is not adjustable on the spirit shader. Its only transparency knob is _Cutoff (vanilla
+        // 0.589), which measured in-game as a hard threshold: identical up to 0.62, gone from 0.63.
         private static readonly int TintColorId = Shader.PropertyToID("_TintColor");
-        // Opacity is not adjustable on this shader. Its only transparency knob is _Cutoff (vanilla 0.589),
-        // which measured in-game as a hard threshold: identical up to 0.62, gone from 0.63, nothing between.
-        // Anything more solid or any real fade needs a different body material (v1 work).
+        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+        private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
 
         private static readonly string[] PropertiesOfInterest =
         {
             "_Color", "_EmissionColor", "_TintColor", "_Hue", "_Saturation", "_Value", "_MainTex",
         };
 
-        private static readonly Dictionary<Material, Color> OriginalColors = new Dictionary<Material, Color>();
         private static readonly HashSet<Material> Described = new HashSet<Material>();
 
         public static void ApplyToPrefabs()
@@ -85,11 +103,13 @@ namespace SpiritAnimism
             return false;
         }
 
-        private static SummonType OwnerOf(Material material)
+        private static SummonType SpeciesOf(Material material)
         {
             foreach (var summon in Summons)
             {
-                if (material.name.StartsWith(summon.MaterialPrefix, StringComparison.OrdinalIgnoreCase)) return summon;
+                if (material == summon.NaturalMaterial) return summon;
+                if (material.HasProperty(TintColorId) &&
+                    material.name.StartsWith(summon.MaterialPrefix, StringComparison.OrdinalIgnoreCase)) return summon;
             }
             return null;
         }
@@ -98,29 +118,84 @@ namespace SpiritAnimism
         {
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
             {
+                var materials = renderer.sharedMaterials;
+                var changed = false;
+
+                for (var i = 0; i < materials.Length; i++)
+                {
+                    var material = materials[i];
+                    if (material == null) continue;
+                    Describe(material, renderer, label);
+
+                    var species = SpeciesOf(material);
+                    if (species == null) continue;
+
+                    if (species.SpiritMaterial == null && material != species.NaturalMaterial)
+                    {
+                        species.SpiritMaterial = material;
+                        species.VanillaTint = material.GetColor(TintColorId);
+                    }
+
+                    var desired = DesiredMaterial(species);
+                    if (desired == null || desired == material) continue;
+                    materials[i] = desired;
+                    changed = true;
+                }
+
+                if (changed) renderer.sharedMaterials = materials;
+            }
+        }
+
+        private static Material DesiredMaterial(SummonType species)
+        {
+            if (species.SpiritMaterial == null) return null;
+            var tint = species.Tint.Value;
+            species.SpiritMaterial.SetColor(TintColorId, MatchIntensity(tint, species.VanillaTint));
+
+            if (species.Look.Value == Look.Spirit) return species.SpiritMaterial;
+
+            var natural = NaturalMaterialFor(species);
+            if (natural == null) return species.SpiritMaterial;
+            natural.SetColor(EmissionColorId, new Color(tint.r, tint.g, tint.b, 1f) * species.Glow.Value);
+            return natural;
+        }
+
+        // Finds the wild animal's body material by the body texture the spirit material already uses,
+        // and keeps a private copy so wild animals are never affected by the glow.
+        private static Material NaturalMaterialFor(SummonType species)
+        {
+            if (species.NaturalLookedUp) return species.NaturalMaterial;
+            species.NaturalLookedUp = true;
+
+            var wild = ZNetScene.instance.GetPrefab(species.WildPrefabName);
+            if (wild == null)
+            {
+                Plugin.Log.LogWarning($"Wild prefab {species.WildPrefabName} not found; {species.ConfigKey} keeps the spirit look");
+                return null;
+            }
+
+            var bodyTexture = species.SpiritMaterial.GetTexture(MainTexId);
+            var bodyTextureName = bodyTexture != null ? bodyTexture.name : null;
+
+            foreach (var renderer in wild.GetComponentsInChildren<Renderer>(true))
+            {
                 foreach (var material in renderer.sharedMaterials)
                 {
                     if (material == null) continue;
+                    Describe(material, renderer, species.WildPrefabName);
+                    if (material.HasProperty(TintColorId) || !material.HasProperty(MainTexId)) continue;
+                    var texture = material.GetTexture(MainTexId);
+                    if (texture == null || texture.name != bodyTextureName) continue;
 
-                    Describe(material, renderer, label);
-                    if (!material.HasProperty(TintColorId)) continue;
-
-                    var owner = OwnerOf(material);
-                    if (owner == null)
-                    {
-                        Plugin.Log.LogWarning($"[{label}] tintable material {material.name} matches no summon type, left vanilla");
-                        continue;
-                    }
-
-                    if (!OriginalColors.TryGetValue(material, out var original))
-                    {
-                        original = material.GetColor(TintColorId);
-                        OriginalColors[material] = original;
-                    }
-
-                    material.SetColor(TintColorId, MatchIntensity(owner.Tint.Value, original));
+                    species.NaturalMaterial = new Material(material) { name = material.name + "_spiritanimism" };
+                    species.NaturalMaterial.EnableKeyword("_EMISSION");
+                    Plugin.Log.LogInfo($"{species.ConfigKey}: natural material from {species.WildPrefabName}/{renderer.name}/{material.name}");
+                    return species.NaturalMaterial;
                 }
             }
+
+            Plugin.Log.LogWarning($"No body material with texture {bodyTextureName} on {species.WildPrefabName}; {species.ConfigKey} keeps the spirit look");
+            return null;
         }
 
         // Vanilla uses HDR values (peak channel ~3). Scale the chosen colour to the same peak so
@@ -156,7 +231,7 @@ namespace SpiritAnimism
             if (material.HasProperty(TintColorId)) DescribeAllProperties(material);
         }
 
-        // Full dump of the spirit shader's properties, to find what drives transparency.
+        // Full dump of the spirit shader's properties.
         private static void DescribeAllProperties(Material material)
         {
             var shader = material.shader;

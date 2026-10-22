@@ -4,21 +4,22 @@ Valheim mod by Brruid. Changes how the animals summoned by the Spirit Caller sta
 
 ## Status
 
-Alpha. Client-side only. A configurable tint colour per summon type (bear, moose, boar,
-wolf), reloaded live when the config file changes, and a hotkey to dismiss your summons.
+Pre-release. Client-side only. Per summon type (bear, moose, boar, wolf): a Spirit or Natural
+look, a tint colour and a glow, reloaded live when the config file changes. A hotkey dismisses
+your summons.
 
 ## Config
 
-`BepInEx/config/Brruid.SpiritAnimism.cfg`, section `[Tint]`:
+`BepInEx/config/Brruid.SpiritAnimism.cfg`. Every setting is per summon type, with keys `Bear`,
+`Moose`, `Boar`, `Wolf`.
 
-- `Bear`, `Moose`, `Boar`, `Wolf` - hex colour of that summon's spirit body (the
-  `_TintColor` of its `Custom/Fallen Warrior` material). Default `40C8FF` (ice blue) for all.
-  Vanilla brightness and transparency are kept; horns, tusks and saddle stay vanilla.
-
-Section `[Dismiss]`:
-
-- `Key` - hotkey that dismisses every spirit summon you called, using the vanilla despawn
-  effect. Default `LeftAlt + X`. Ignored while the console, chat or menu is open.
+- `[Look]` - `Spirit` (vanilla translucent ghost in your tint) or `Natural` (the wild animal's own
+  opaque body, borrowed from the wild creature at runtime, with a glow in your tint).
+- `[Tint]` - hex colour. Spirit look: the body colour, vanilla brightness and transparency kept.
+  Natural look: the glow colour. Default `40C8FF` (ice blue).
+- `[Glow]` - glow strength for the Natural look, 0 to 5. 0 is a plain wild animal. Default 0.3.
+- `[Dismiss]` `Key` - hotkey that dismisses every spirit summon you called, with the vanilla
+  despawn effect. Default `LeftAlt + X`. Ignored while the console, chat or menu is open.
 
 Edits to the file are picked up while the game runs, including on summons already out.
 
