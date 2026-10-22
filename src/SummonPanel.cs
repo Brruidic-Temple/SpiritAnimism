@@ -71,7 +71,7 @@ namespace SpiritAnimism
             _root.SetActive(visible);
             if (!visible) return;
 
-            _header.text = $"SPIRITS [{summons.Count}]  <color=#{ColorUtility.ToHtmlStringRGB(HeaderColor)}>▸ {Picker.DisplayName(Picker.CurrentType())}</color>";
+            _header.text = $"SPIRITS [{summons.Count}]  <color=#{ColorUtility.ToHtmlStringRGB(HeaderColor)}>> {Picker.DisplayName(Picker.CurrentType())}</color>";
             while (Rows.Count < summons.Count) Rows.Add(BuildRow(Rows.Count));
             for (var i = 0; i < Rows.Count; i++)
             {
