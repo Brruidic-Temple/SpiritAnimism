@@ -7,6 +7,10 @@
     <RootNamespace>SpiritAnimism</RootNamespace>
     <Version>0.4.0</Version>
     <Authors>Brruid</Authors>
+    <ThunderstoreTeam>Brruidic_Temple</ThunderstoreTeam>
+    <PackageDescription>Spirit Caller summons your way: tint or natural look per animal, pick what the staff summons, a summon panel and a dismiss key. Client-side.</PackageDescription>
+    <WebsiteUrl>https://github.com/Brruidic-Temple/SpiritAnimism</WebsiteUrl>
+    <BepInExPackDependency>denikson-BepInExPack_Valheim-5.4.2351</BepInExPackDependency>
     <Nullable>disable</Nullable>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -46,6 +50,29 @@
     <MakeDir Directories="$(PluginDeployDir)" />
     <Copy SourceFiles="$(TargetPath);$(TargetDir)$(AssemblyName).pdb" DestinationFolder="$(PluginDeployDir)" SkipUnchangedFiles="true" />
     <Message Importance="high" Text="Deployed $(AssemblyName).dll to $(PluginDeployDir)" />
+  </Target>
+
+  <!-- dotnet build -c Release -t:Package  ->  dist/SpiritAnimism-<version>.zip, Thunderstore layout. -->
+  <Target Name="Package" DependsOnTargets="Build">
+    <PropertyGroup>
+      <PackageStaging>$(MSBuildProjectDirectory)/obj/package</PackageStaging>
+      <PackageZip>$(MSBuildProjectDirectory)/dist/$(AssemblyName)-$(Version).zip</PackageZip>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)/package/icon.png')" Text="package/icon.png is missing (256x256 PNG required by Thunderstore)" />
+    <RemoveDir Directories="$(PackageStaging)" />
+    <MakeDir Directories="$(PackageStaging)/plugins;$(MSBuildProjectDirectory)/dist" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackageStaging)/plugins" />
+    <Copy SourceFiles="README.md;CHANGELOG.md;package/icon.png" DestinationFolder="$(PackageStaging)" />
+    <WriteLinesToFile File="$(PackageStaging)/manifest.json" Overwrite="true" Lines="{
+  &quot;name&quot;: &quot;$(AssemblyName)&quot;,
+  &quot;version_number&quot;: &quot;$(Version)&quot;,
+  &quot;website_url&quot;: &quot;$(WebsiteUrl)&quot;,
+  &quot;description&quot;: &quot;$(PackageDescription)&quot;,
+  &quot;dependencies&quot;: [ &quot;$(BepInExPackDependency)&quot; ]
+}" />
+    <Delete Files="$(PackageZip)" />
+    <ZipDirectory SourceDirectory="$(PackageStaging)" DestinationFile="$(PackageZip)" />
+    <Message Importance="high" Text="Packaged $(PackageZip) for team $(ThunderstoreTeam)" />
   </Target>
 
 </Project>

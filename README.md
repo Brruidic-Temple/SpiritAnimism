@@ -58,3 +58,11 @@ Paths default to the author's machine; override with `-p:ValheimManaged=...`,
     dotnet build -c Release
 
 The build copies the DLL into the Gale profile's plugins folder. Pass `-p:NoDeploy=true` to skip.
+
+    dotnet build -c Release -t:Package
+
+Builds the Thunderstore zip into `dist/`. Needs `package/icon.png` (256x256).
+
+## License
+
+MIT. See LICENSE.
