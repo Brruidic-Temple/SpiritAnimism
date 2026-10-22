@@ -1,29 +1,21 @@
-using UnityEngine;
-
 namespace SpiritAnimism
 {
     internal static class Dismiss
     {
         // Mirrors the game's own unsummon path (Tameable.UnSummon is private): a "RPC_UnSummon" call to
-        // everybody plays the despawn effect on each client and the owner destroys the creature. The game
-        // identifies a summoner's summons by the ZDO follow string matching the player name.
+        // everybody plays the despawn effect on each client and the owner destroys the creature.
+        // A summon left standing far away may be loaded yet owned by nobody; the game never claims
+        // those, so nothing would destroy it. Claiming it first makes this client the owner.
         public static void MySummons()
         {
             var player = Player.m_localPlayer;
             if (player == null) return;
 
-            var playerName = player.GetPlayerName();
             var dismissed = 0;
-
-            foreach (var character in Character.GetAllCharacters())
+            foreach (var summon in Summons.Mine())
             {
-                if (character == null || !SummonLooks.IsSummon(character.gameObject.name)) continue;
-
-                var nview = character.GetComponent<ZNetView>();
-                if (nview == null || !nview.IsValid()) continue;
-                if (nview.GetZDO().GetString(ZDOVars.s_follow, "") != playerName) continue;
-
-                nview.InvokeRPC(ZNetView.Everybody, "RPC_UnSummon");
+                if (!summon.View.HasOwner()) summon.View.ClaimOwnership();
+                summon.View.InvokeRPC(ZNetView.Everybody, "RPC_UnSummon");
                 dismissed++;
             }
 

@@ -8,16 +8,16 @@ using UnityEngine;
 namespace SpiritAnimism
 {
     // Which animal the Spirit Caller summons next. Secondary attack with the staff in hand cycles
-    // through the configured order; the pick is remembered in the config file.
+    // through the configured order; the pick is remembered with the character.
     internal static class Picker
     {
         public const string Random = "Random";
         private const string StaffItemName = "$item_staff_spiritcaller";
         private const string StaffPrefabName = "StaffSpiritCaller";
         private const string OtherPickerGuid = "algo7.pickyourspirit";
+        private const string PickKey = "SpiritAnimism.Pick";
 
         internal static ConfigEntry<string> Order;
-        internal static ConfigEntry<string> Current;
         internal static ConfigEntry<bool> SkipFull;
 
         private static bool _disabled;
@@ -28,12 +28,7 @@ namespace SpiritAnimism
                 "Pick",
                 "Order",
                 "Random, Bear, Moose, Boar, Wolf",
-                "What the secondary attack cycles through with the Spirit Caller in hand, in this order. Random is the game's own roll.");
-            Current = config.Bind(
-                "Pick",
-                "Current",
-                Random,
-                "What the Spirit Caller summons next: Random, Bear, Moose, Boar or Wolf. Changed in game with the secondary attack; remembered here.");
+                "What the secondary attack cycles through with the Spirit Caller in hand, in this order. Random is the game's own roll. The current pick is remembered with your character.");
             SkipFull = config.Bind(
                 "Pick",
                 "SkipFull",
@@ -56,31 +51,32 @@ namespace SpiritAnimism
             return item.m_dropPrefab != null && item.m_dropPrefab.name == StaffPrefabName;
         }
 
-        // The picked summon type, or null for Random (also for anything unrecognised in the config).
-        public static SummonType CurrentType() => TypeNamed(Current.Value);
+        // The picked summon type, or null for Random. The pick lives in the character's custom data,
+        // which the game saves with the character.
+        public static SummonType CurrentType()
+        {
+            var player = Player.m_localPlayer;
+            return player != null && player.m_customData.TryGetValue(PickKey, out var name) ? Summons.Named(name) : null;
+        }
 
         public static void Cycle()
         {
+            var player = Player.m_localPlayer;
+            if (player == null) return;
             var steps = Steps();
             if (steps.Count == 0) return;
 
-            var index = steps.FindIndex(step => string.Equals(step, Current.Value, StringComparison.OrdinalIgnoreCase));
+            var current = CurrentType();
+            var currentName = current != null ? current.Name : Random;
+            var index = steps.FindIndex(step => string.Equals(step, currentName, StringComparison.OrdinalIgnoreCase));
             for (var attempt = 1; attempt <= steps.Count; attempt++)
             {
-                var candidate = steps[(index + attempt) % steps.Count];
-                var type = TypeNamed(candidate);
+                var type = Summons.Named(steps[(index + attempt) % steps.Count]);
                 if (type != null && SkipFull.Value && IsAtCap(type)) continue;
-                Current.Value = type != null ? type.ConfigKey : Random;
+                player.m_customData[PickKey] = type != null ? type.Name : Random;
                 break;
             }
 
-            ShowCurrent();
-        }
-
-        public static void ShowCurrent()
-        {
-            var player = Player.m_localPlayer;
-            if (player == null) return;
             player.Message(MessageHud.MessageType.Center, $"Spirit: {DisplayName(CurrentType())}");
         }
 
@@ -90,31 +86,22 @@ namespace SpiritAnimism
             if (type == null) return Random;
             var wild = ZNetScene.instance != null ? ZNetScene.instance.GetPrefab(type.WildPrefabName) : null;
             var character = wild != null ? wild.GetComponent<Character>() : null;
-            if (character == null || string.IsNullOrEmpty(character.m_name)) return type.ConfigKey;
+            if (character == null || string.IsNullOrEmpty(character.m_name)) return type.Name;
             return Localization.instance.Localize(character.m_name);
         }
 
-        // Owned summons of this kind, and whether they fill the staff's limit. The limit is read from
+        // Whether the player's summons of this kind fill the staff's limit. The limit is read from
         // the summons themselves: the game writes it into each one's network data when it spawns.
         public static bool IsAtCap(SummonType type)
         {
-            var player = Player.m_localPlayer;
-            if (player == null) return false;
-            var playerName = player.GetPlayerName();
             var count = 0;
             var max = 0;
-
-            foreach (var character in Character.GetAllCharacters())
+            foreach (var summon in Summons.Mine())
             {
-                if (character == null || !character.gameObject.name.StartsWith(type.PrefabName)) continue;
-                var nview = character.GetComponent<ZNetView>();
-                if (nview == null || !nview.IsValid()) continue;
-                var zdo = nview.GetZDO();
-                if (zdo.GetString(ZDOVars.s_follow, "") != playerName) continue;
+                if (summon.Species != type) continue;
                 count++;
-                if (max == 0) max = zdo.GetInt(ZDOVars.s_maxInstances, 0);
+                if (max == 0) max = summon.Zdo.GetInt(ZDOVars.s_maxInstances, 0);
             }
-
             return max > 0 && count >= max;
         }
 
@@ -126,19 +113,10 @@ namespace SpiritAnimism
             foreach (var prefab in spawnList)
             {
                 if (prefab == null) continue;
-                var type = TypeOfPrefab(prefab.name);
+                var type = Summons.SpeciesOf(prefab.name);
                 if (type == null || !IsAtCap(type)) withRoom.Add(prefab);
             }
             return withRoom.Count > 0 && withRoom.Count < spawnList.Length ? withRoom.ToArray() : spawnList;
-        }
-
-        private static SummonType TypeOfPrefab(string prefabName)
-        {
-            foreach (var summon in SummonLooks.Summons)
-            {
-                if (summon.PrefabName == prefabName) return summon;
-            }
-            return null;
         }
 
         private static List<string> Steps()
@@ -148,7 +126,7 @@ namespace SpiritAnimism
             {
                 var step = raw.Trim();
                 if (step.Length == 0) continue;
-                if (!string.Equals(step, Random, StringComparison.OrdinalIgnoreCase) && TypeNamed(step) == null)
+                if (!string.Equals(step, Random, StringComparison.OrdinalIgnoreCase) && Summons.Named(step) == null)
                 {
                     Plugin.Log.LogWarning($"Pick order entry '{step}' is not Random, Bear, Moose, Boar or Wolf; ignored");
                     continue;
@@ -156,15 +134,6 @@ namespace SpiritAnimism
                 steps.Add(step);
             }
             return steps;
-        }
-
-        private static SummonType TypeNamed(string name)
-        {
-            foreach (var summon in SummonLooks.Summons)
-            {
-                if (string.Equals(summon.ConfigKey, name, StringComparison.OrdinalIgnoreCase)) return summon;
-            }
-            return null;
         }
     }
 

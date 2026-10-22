@@ -21,6 +21,8 @@ namespace SpiritAnimism
         private const float RowIndent = 32f;
         private const float BarWidth = 160f;
         private const float BarHeight = 6f;
+        // The game's plain sans, not the pixel font its default settings point at.
+        private const string PreferredFont = "Valheim-AveriaSansLibre";
         private static readonly Color HeaderColor = new Color(0.94f, 0.76f, 0.35f);
         private static readonly Color NameColor = new Color(0.9f, 0.9f, 0.9f);
         private static readonly Color ActivityColor = new Color(0.65f, 0.65f, 0.65f);
@@ -31,6 +33,7 @@ namespace SpiritAnimism
         private static TMP_Text _header;
         private static TMP_FontAsset _font;
         private static Material _fontMaterial;
+        private static bool _fontMissing;
         private static readonly List<Row> Rows = new List<Row>();
         private static float _nextRefresh;
 
@@ -47,10 +50,6 @@ namespace SpiritAnimism
             OffsetX = config.Bind("Panel", "OffsetX", 20f, "Distance from the left edge of the screen.");
             OffsetY = config.Bind("Panel", "OffsetY", 220f, "Distance from the top edge of the screen.");
             Scale = config.Bind("Panel", "Scale", 1f, new ConfigDescription("Size of the panel.", new AcceptableValueRange<float>(0.5f, 3f)));
-            Show.SettingChanged += (_, _) => Place();
-            OffsetX.SettingChanged += (_, _) => Place();
-            OffsetY.SettingChanged += (_, _) => Place();
-            Scale.SettingChanged += (_, _) => Place();
         }
 
         public static void Update()
@@ -66,10 +65,14 @@ namespace SpiritAnimism
             }
             if (_root == null && !Build()) return;
 
-            var summons = MySummons(player);
+            var summons = new List<Summon>(Summons.Mine());
             var visible = Show.Value && Hud.instance.IsVisible() && (summons.Count > 0 || Picker.IsSpiritCaller(player.GetCurrentWeapon()));
             _root.SetActive(visible);
             if (!visible) return;
+
+            var rect = (RectTransform)_root.transform;
+            rect.anchoredPosition = new Vector2(OffsetX.Value, -OffsetY.Value);
+            rect.localScale = Vector3.one * Scale.Value;
 
             _header.text = $"SPIRITS [{summons.Count}]  <color=#{ColorUtility.ToHtmlStringRGB(HeaderColor)}>> {Picker.DisplayName(Picker.CurrentType())}</color>";
             while (Rows.Count < summons.Count) Rows.Add(BuildRow(Rows.Count));
@@ -81,35 +84,11 @@ namespace SpiritAnimism
                     row.Root.SetActive(false);
                     continue;
                 }
-                var character = summons[i];
+                var summon = summons[i];
                 row.Root.SetActive(true);
-                row.Text.text = $"{Name(character)}   <color=#{ColorUtility.ToHtmlStringRGB(ActivityColor)}>{Activity(character)}</color>";
-                row.Fill.sizeDelta = new Vector2(BarWidth * Mathf.Clamp01(character.GetHealthPercentage()), BarHeight);
+                row.Text.text = $"{Picker.DisplayName(summon.Species)}   <color=#{ColorUtility.ToHtmlStringRGB(ActivityColor)}>{Activity(summon.Character)}</color>";
+                row.Fill.sizeDelta = new Vector2(BarWidth * Mathf.Clamp01(summon.Character.GetHealthPercentage()), BarHeight);
             }
-        }
-
-        private static List<Character> MySummons(Player player)
-        {
-            var playerName = player.GetPlayerName();
-            var summons = new List<Character>();
-            foreach (var character in Character.GetAllCharacters())
-            {
-                if (character == null || !SummonLooks.IsSummon(character.gameObject.name)) continue;
-                var nview = character.GetComponent<ZNetView>();
-                if (nview == null || !nview.IsValid()) continue;
-                if (nview.GetZDO().GetString(ZDOVars.s_follow, "") != playerName) continue;
-                summons.Add(character);
-            }
-            return summons;
-        }
-
-        private static string Name(Character character)
-        {
-            foreach (var summon in SummonLooks.Summons)
-            {
-                if (character.gameObject.name.StartsWith(summon.PrefabName)) return Picker.DisplayName(summon);
-            }
-            return character.gameObject.name;
         }
 
         private static string Activity(Character character)
@@ -122,9 +101,11 @@ namespace SpiritAnimism
             return "Idle";
         }
 
+        // Runs once per Hud: the game destroys the Hud, and the panel under it, on every logout.
         private static bool Build()
         {
-            if (!PickFont()) return false;
+            if (_fontMissing || !PickFont()) return false;
+            Rows.Clear();
 
             _root = new GameObject("SpiritAnimismPanel", typeof(RectTransform));
             _root.transform.SetParent(Hud.instance.m_rootObject.transform, false);
@@ -134,26 +115,18 @@ namespace SpiritAnimism
 
             _header = MakeText(_root.transform, "Header", 14f, NameColor, FontStyles.Bold);
             ((RectTransform)_header.transform).anchoredPosition = Vector2.zero;
-
-            Place();
             return true;
         }
 
-        // The game's plain sans, not the pixel font its default settings point at.
-        private const string PreferredFont = "Valheim-AveriaSansLibre";
-
         private static bool PickFont()
         {
-            var fonts = Resources.FindObjectsOfTypeAll<TMP_FontAsset>();
-            var names = new List<string>();
             TMP_FontAsset chosen = null;
-            foreach (var font in fonts)
+            foreach (var font in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
             {
-                names.Add(font.name);
-                if (font.name == PreferredFont) chosen = font;
+                if (font.name != PreferredFont) continue;
+                chosen = font;
+                break;
             }
-            Plugin.Log.LogInfo($"TMP fonts available: {string.Join(", ", names)}");
-
             if (chosen == null) chosen = TMP_Settings.defaultFontAsset;
             if (chosen == null)
             {
@@ -162,8 +135,8 @@ namespace SpiritAnimism
             }
             if (chosen == null)
             {
-                Plugin.Log.LogWarning("No font found for the summon panel; it is off");
-                Show.Value = false;
+                _fontMissing = true;
+                Plugin.Log.LogWarning("No font found for the summon panel; it stays off this session");
                 return false;
             }
             _font = chosen;
@@ -221,15 +194,6 @@ namespace SpiritAnimism
             image.color = color;
             image.raycastTarget = false;
             return rect;
-        }
-
-        private static void Place()
-        {
-            if (_root == null) return;
-            var rect = (RectTransform)_root.transform;
-            rect.anchoredPosition = new Vector2(OffsetX.Value, -OffsetY.Value);
-            rect.localScale = Vector3.one * Scale.Value;
-            _nextRefresh = 0f;
         }
     }
 }

@@ -1,56 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using BepInEx.Configuration;
 using UnityEngine;
 
 namespace SpiritAnimism
 {
-    internal enum Look
-    {
-        Spirit,
-        Natural,
-    }
-
-    internal enum GlowArea
-    {
-        Body,
-        Eyes,
-    }
-
-    internal sealed class SummonType
-    {
-        public readonly string PrefabName;
-        public readonly string WildPrefabName;
-        public readonly string ConfigKey;
-        public readonly string MaterialPrefix;
-
-        public ConfigEntry<Look> Look;
-        public ConfigEntry<Color> Tint;
-        public ConfigEntry<float> Glow;
-        public ConfigEntry<GlowArea> Area;
-
-        // Shared assets, looked up once: the summon's spirit body material and the wild animal's body material.
-        public Material SpiritMaterial;
-        public Color VanillaTint;
-        public Material WildMaterial;
-        public Texture VanillaEmissionMap;
-        public Color VanillaEmissionColor;
-        public bool AssetsLookedUp;
-        public bool WarnedNoEyeMask;
-
-        public SummonType(string prefabName, string wildPrefabName, string configKey, string materialPrefix)
-        {
-            PrefabName = prefabName;
-            WildPrefabName = wildPrefabName;
-            ConfigKey = configKey;
-            MaterialPrefix = materialPrefix;
-        }
-    }
-
     // One summon's appearance, as written into its network data by the summoner and read by every client.
     internal struct LookSpec
     {
+        public const float MaxGlow = 5f;
         private const string Version = "1";
 
         public Look Look;
@@ -60,37 +18,36 @@ namespace SpiritAnimism
 
         public static LookSpec FromConfig(SummonType type) => new LookSpec
         {
-            Look = type.Look.Value, Tint = type.Tint.Value, Glow = type.Glow.Value, Area = type.Area.Value,
+            Look = type.Look.Value,
+            Tint = type.Tint.Value,
+            Glow = type.Glow.Value,
+            Area = type.Area != null ? type.Area.Value : GlowArea.Body,
         };
 
         public string Serialize() =>
             $"{Version};{Look};{ColorUtility.ToHtmlStringRGB(Tint)};{Glow.ToString("0.###", CultureInfo.InvariantCulture)};{Area}";
 
+        // The text comes from another client, so every field is range-checked rather than trusted.
         public static bool TryParse(string text, out LookSpec spec)
         {
             spec = default;
             if (string.IsNullOrEmpty(text)) return false;
             var parts = text.Split(';');
             if (parts.Length != 5 || parts[0] != Version) return false;
-            if (!Enum.TryParse(parts[1], out spec.Look)) return false;
+            if (!Enum.TryParse(parts[1], out spec.Look) || !Enum.IsDefined(typeof(Look), spec.Look)) return false;
             if (!ColorUtility.TryParseHtmlString("#" + parts[2], out spec.Tint)) return false;
             if (!float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out spec.Glow)) return false;
-            return Enum.TryParse(parts[4], out spec.Area);
+            if (float.IsNaN(spec.Glow) || float.IsInfinity(spec.Glow)) return false;
+            spec.Glow = Mathf.Clamp(spec.Glow, 0f, MaxGlow);
+            return Enum.TryParse(parts[4], out spec.Area) && Enum.IsDefined(typeof(GlowArea), spec.Area);
         }
     }
 
+    // Keeps every standing summon showing the right look. The summoner writes their config into the
+    // summons they own and sees it at once; every other client reads it from the summon's network
+    // data. Summons without a stored look (called by players without the mod) stay vanilla.
     internal static class SummonLooks
     {
-        // The spirit body materials (<animal>_mat_spiritcaller, shader Custom/Fallen Warrior) carry the
-        // pink as an HDR _TintColor. Opaque parts (horns, tusks, saddle) use _Color and are left alone.
-        internal static readonly SummonType[] Summons =
-        {
-            new SummonType("Bjorn_spiritcaller", "Bjorn", "Bear", "Bjorn_"),
-            new SummonType("Moose_spiritcaller", "Moose", "Moose", "Moose_"),
-            new SummonType("Boar_spiritcaller", "Boar", "Boar", "Boar_"),
-            new SummonType("Wolf_spiritcaller", "Wolf", "Wolf", "Wolf_"),
-        };
-
         internal static readonly int TintColorId = Shader.PropertyToID("_TintColor");
         internal static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
         internal static readonly int EmissionMapId = Shader.PropertyToID("_EmissionMap");
@@ -98,26 +55,11 @@ namespace SpiritAnimism
 
         // Custom key in each summon's network data. The game replicates it to every client and into
         // the save; a vanilla server relays it; clients without the mod ignore it.
-        private static readonly int LookKey = "SpiritAnimism.Look".GetStableHashCode();
+        internal static readonly int LookKey = "SpiritAnimism.Look".GetStableHashCode();
 
         private const float RefreshSeconds = 0.25f;
         private static float _nextRefresh;
 
-        public static void Refresh() => _nextRefresh = 0f;
-
-        public static bool IsSummon(string objectName) => SpeciesOf(objectName) != null;
-
-        public static SummonType SpeciesOf(string objectName)
-        {
-            foreach (var summon in Summons)
-            {
-                if (objectName.StartsWith(summon.PrefabName)) return summon;
-            }
-            return null;
-        }
-
-        // Every summon in the world: write my look onto the ones I own, then show each one the look its
-        // network data says, my config for my own while the write is in flight, vanilla for the rest.
         public static void Update()
         {
             if (Time.unscaledTime < _nextRefresh) return;
@@ -127,29 +69,35 @@ namespace SpiritAnimism
             var player = Player.m_localPlayer;
             var playerName = player != null ? player.GetPlayerName() : null;
 
-            foreach (var character in Character.GetAllCharacters())
+            foreach (var summon in Summons.Standing())
             {
-                if (character == null) continue;
-                var species = SpeciesOf(character.gameObject.name);
-                if (species == null || !LookUpAssets(species)) continue;
+                if (!LookUpAssets(summon.Species)) continue;
+                var zdo = summon.Zdo;
+                var stored = zdo.GetString(LookKey, "");
+                LookSpec? spec;
+                string key;
 
-                var nview = character.GetComponent<ZNetView>();
-                if (nview == null || !nview.IsValid()) continue;
-                var zdo = nview.GetZDO();
-                var mine = playerName != null && zdo.GetString(ZDOVars.s_follow, "") == playerName;
-
-                if (mine && nview.IsOwner())
+                if (summon.CalledBy(playerName))
                 {
-                    var desired = LookSpec.FromConfig(species).Serialize();
-                    if (zdo.GetString(LookKey, "") != desired) zdo.Set(LookKey, desired);
+                    var mine = LookSpec.FromConfig(summon.Species);
+                    spec = mine;
+                    key = mine.Serialize();
+                    // Only the owner may write; while someone else owns it the stored copy lags behind.
+                    if (summon.View.IsOwner() && stored != key) zdo.Set(LookKey, key);
+                }
+                else if (LookSpec.TryParse(stored, out var theirs))
+                {
+                    spec = theirs;
+                    key = stored;
+                }
+                else
+                {
+                    spec = null;
+                    key = SummonLook.VanillaKey;
                 }
 
-                LookSpec? spec = null;
-                if (LookSpec.TryParse(zdo.GetString(LookKey, ""), out var stored)) spec = stored;
-                else if (mine) spec = LookSpec.FromConfig(species);
-
-                var look = character.GetComponent<SummonLook>() ?? character.gameObject.AddComponent<SummonLook>();
-                look.Apply(species, spec);
+                var look = summon.Character.GetComponent<SummonLook>() ?? summon.Character.gameObject.AddComponent<SummonLook>();
+                look.Apply(summon.Species, spec, key);
             }
         }
 
@@ -158,6 +106,8 @@ namespace SpiritAnimism
             if (species.AssetsLookedUp) return species.SpiritMaterial != null;
             species.AssetsLookedUp = true;
 
+            // The spirit body material carries the vanilla pink as an HDR _TintColor. Opaque parts
+            // (horns, tusks, saddle) use _Color and are left alone.
             var prefab = ZNetScene.instance.GetPrefab(species.PrefabName);
             if (prefab == null)
             {
@@ -168,8 +118,7 @@ namespace SpiritAnimism
             {
                 foreach (var material in renderer.sharedMaterials)
                 {
-                    if (material == null || !material.HasProperty(TintColorId)) continue;
-                    if (!material.name.StartsWith(species.MaterialPrefix, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (material == null || !material.HasProperty(TintColorId) || !species.OwnsMaterial(material)) continue;
                     species.SpiritMaterial = material;
                     species.VanillaTint = material.GetColor(TintColorId);
                     break;
@@ -205,10 +154,10 @@ namespace SpiritAnimism
             }
             if (species.WildMaterial == null)
             {
-                Plugin.Log.LogWarning($"No wild body material for {species.ConfigKey}; its Natural look falls back to Spirit");
+                Plugin.Log.LogWarning($"No wild body material for {species.Name}; its Natural look falls back to Spirit");
             }
 
-            Plugin.Log.LogInfo($"{species.ConfigKey}: spirit material {species.SpiritMaterial.name}, wild material {(species.WildMaterial != null ? species.WildMaterial.name : "none")}");
+            Plugin.Log.LogInfo($"{species.Name}: spirit material {species.SpiritMaterial.name}, wild material {(species.WildMaterial != null ? species.WildMaterial.name : "none")}");
             return true;
         }
 
@@ -223,46 +172,68 @@ namespace SpiritAnimism
         }
     }
 
-    // Lives on each summon: owns that summon's private copies of the body materials, so two
-    // players' summons can look different on the same screen. Destroys them with the summon.
+    // Lives on each summon: owns that summon's private copies of the body material, so two players'
+    // summons can look different on the same screen. Destroys them with the summon.
     internal sealed class SummonLook : MonoBehaviour
     {
+        public const string VanillaKey = "vanilla";
+
+        // A renderer slot that held the body material when this summon was first seen. What sat there
+        // is the vanilla look to restore: the shared spirit material, or the copy the game's level
+        // effects make of it for starred creatures, which keeps the shared material's name.
+        private struct BodySlot
+        {
+            public Renderer Renderer;
+            public int Index;
+            public Material Vanilla;
+        }
+
         private SummonType _species;
+        private readonly List<BodySlot> _slots = new List<BodySlot>();
         private string _applied;
         private Material _spirit;
         private Material _natural;
 
-        public void Apply(SummonType species, LookSpec? spec)
+        // Key identifies the look, so equal looks are not re-applied every tick.
+        public void Apply(SummonType species, LookSpec? spec, string key)
         {
-            _species = species;
-            var key = spec.HasValue ? spec.Value.Serialize() : "vanilla";
             if (key == _applied) return;
+            if (_species == null)
+            {
+                _species = species;
+                FindBodySlots();
+            }
             _applied = key;
 
-            var desired = Desired(spec);
-            foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+            foreach (var slot in _slots)
             {
-                var materials = renderer.sharedMaterials;
-                var changed = false;
-                for (var i = 0; i < materials.Length; i++)
-                {
-                    var material = materials[i];
-                    if (material == null || !IsBodySlot(material) || material == desired) continue;
-                    materials[i] = desired;
-                    changed = true;
-                }
-                if (changed) renderer.sharedMaterials = materials;
+                if (slot.Renderer == null) continue;
+                var materials = slot.Renderer.sharedMaterials;
+                if (slot.Index >= materials.Length) continue;
+                var desired = spec.HasValue ? Styled(spec.Value, slot.Vanilla) : slot.Vanilla;
+                if (materials[slot.Index] == desired) continue;
+                materials[slot.Index] = desired;
+                slot.Renderer.sharedMaterials = materials;
             }
         }
 
-        private bool IsBodySlot(Material material) =>
-            material == _species.SpiritMaterial || material == _spirit || material == _natural;
-
-        private Material Desired(LookSpec? maybe)
+        private void FindBodySlots()
         {
-            if (!maybe.HasValue) return _species.SpiritMaterial;
-            var spec = maybe.Value;
+            var bodyName = _species.SpiritMaterial.name;
+            foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+            {
+                var materials = renderer.sharedMaterials;
+                for (var i = 0; i < materials.Length; i++)
+                {
+                    if (materials[i] == null || !materials[i].name.StartsWith(bodyName, StringComparison.Ordinal)) continue;
+                    _slots.Add(new BodySlot { Renderer = renderer, Index = i, Vanilla = materials[i] });
+                }
+            }
+            if (_slots.Count == 0) Plugin.Log.LogWarning($"{_species.Name} summon {name} has no body material slot; it stays vanilla");
+        }
 
+        private Material Styled(LookSpec spec, Material vanilla)
+        {
             if (spec.Look == Look.Natural && _species.WildMaterial != null)
             {
                 if (_natural == null)
@@ -274,7 +245,7 @@ namespace SpiritAnimism
                 if (eyesWithoutMask && !_species.WarnedNoEyeMask)
                 {
                     _species.WarnedNoEyeMask = true;
-                    Plugin.Log.LogWarning($"{_species.ConfigKey} has no eye mask; GlowArea Eyes lights nothing on it");
+                    Plugin.Log.LogWarning($"{_species.Name} has no eye mask; GlowArea Eyes lights nothing on it");
                 }
                 if (spec.Glow > 0f && !eyesWithoutMask)
                 {
@@ -289,9 +260,10 @@ namespace SpiritAnimism
                 return _natural;
             }
 
+            // Copying the vanilla slot material rather than the shared asset keeps any star tint on it.
             if (_spirit == null)
             {
-                _spirit = new Material(_species.SpiritMaterial) { name = _species.SpiritMaterial.name + "_spiritanimism" };
+                _spirit = new Material(vanilla) { name = _species.SpiritMaterial.name + "_spiritanimism" };
             }
             _spirit.SetColor(SummonLooks.TintColorId, SummonLooks.MatchIntensity(spec.Tint, _species.VanillaTint));
             return _spirit;

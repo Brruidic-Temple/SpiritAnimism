@@ -15,28 +15,30 @@ vanilla. Players without the mod see everything as vanilla.
 
 ## Config
 
-`BepInEx/config/Brruid.SpiritAnimism.cfg`. Every setting is per summon type, with keys `Bear`,
-`Moose`, `Boar`, `Wolf`.
+`BepInEx/config/Brruid.SpiritAnimism.cfg`. Edits are picked up while the game runs, including on
+summons already out. One section per animal: `[Bear]`, `[Moose]`, `[Boar]`, `[Wolf]`.
 
-- `[Look]` - `Spirit` (vanilla translucent ghost in your tint) or `Natural` (the wild animal's own
+- `Look` - `Spirit` (vanilla translucent ghost in your tint) or `Natural` (the wild animal's own
   opaque body, borrowed from the wild creature at runtime, with a glow in your tint).
-- `[Tint]` - hex colour. Spirit look: the body colour, vanilla brightness and transparency kept.
-  Natural look: the glow colour. Default `40C8FF` (ice blue).
-- `[Glow]` - glow strength for the Natural look, 0 to 5. 0 is a plain wild animal. Default 0.3.
-- `[GlowArea]` - `Body` (whole body) or `Eyes` (the animal's own eye mask, in your tint). Only the
-  moose has a usable eye mask. Wolf eyes glow by themselves, from the wolf's texture. The bear's
-  mask marks a hidden spot and the boar has none, so `Eyes` lights nothing visible on them.
+- `Tint` - hex colour. Spirit look: the body colour, vanilla brightness and transparency kept.
+  Natural look: the glow colour. Default `40C8FFFF` (ice blue).
+- `Glow` - glow strength for the Natural look, 0 to 5. 0 is a plain wild animal. Default 0.3.
+- `GlowArea` (moose only) - `Body` (whole body) or `Eyes` (the moose's own eye mask, in your tint).
+  The other animals have no usable eye mask; see Known limitations.
+
+The remaining sections:
+
 - `[Pick]` - with the Spirit Caller in hand, the secondary attack (middle mouse by default) cycles
   which animal the next cast summons; a centre message names it. `Order` is the cycle (default
-  `Random, Bear, Moose, Boar, Wolf`), `Current` is the remembered pick, and `SkipFull` skips kinds
-  already at your staff's limit, both when cycling and in the Random roll. If PickYourSpirit is also installed, this picker switches itself off.
+  `Random, Bear, Moose, Boar, Wolf`) and `SkipFull` skips kinds already at your staff's limit, both
+  when cycling and in the Random roll. The current pick is saved with your character. If
+  PickYourSpirit is also installed, this picker switches itself off.
 - `[Panel]` - a top-left list of your standing summons: header with the count and the current pick,
   then each summon's name, what it is doing, and a health bar. Shown while the Spirit Caller is in
   hand or a summon is out. `Show`, `OffsetX` (20), `OffsetY` (220) and `Scale` (1).
 - `[Dismiss]` `Key` - hotkey that dismisses every spirit summon you called, with the vanilla
-  despawn effect. Default `LeftAlt + X`. Ignored while the console, chat or menu is open.
-
-Edits to the file are picked up while the game runs, including on summons already out.
+  despawn effect, including ones left standing far away that the game itself can no longer
+  unsummon. Default `LeftAlt + X`. Ignored while the console, chat or menu is open.
 
 ## Known limitations
 
@@ -58,6 +60,9 @@ Paths default to the author's machine; override with `-p:ValheimManaged=...`,
     dotnet build -c Release
 
 The build copies the DLL into the Gale profile's plugins folder. Pass `-p:NoDeploy=true` to skip.
+A Debug build (`dotnet build`) adds a `[Debug]` config section: `DumpLiveSummons` writes every
+standing summon's visual setup to the log, and `DumpKey` (default `LeftAlt + D`) writes every
+summon's network state, loaded or not.
 
     dotnet build -c Release -t:Package
 

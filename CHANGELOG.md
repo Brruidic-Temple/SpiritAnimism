@@ -6,6 +6,8 @@
 - Picker: secondary attack with the Spirit Caller cycles what it summons next; cap-aware; remembered.
 - Panel: top-left list of your summons with the current pick, activity and health.
 - Your look travels with your summons to other players running the mod.
+- Config: one section per animal; the eye-glow switch exists only on the moose, the one animal it affects.
+- Dismiss also reaches summons left standing far away that nobody owns, which the game's own unsummon cannot remove.
 
 ## 0.3.0
 
