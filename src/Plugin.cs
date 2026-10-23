@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using BepInEx;
 using BepInEx.Configuration;
@@ -16,6 +17,7 @@ namespace SpiritAnimism
         public const string Version = "0.4.0";
 
         internal static ManualLogSource Log;
+        internal static ConfigFile Settings;
         internal static ConfigEntry<KeyboardShortcut> DismissKey;
 
         // BepInEx does not watch config files, so poll the file's timestamp to reload edits made while playing.
@@ -26,26 +28,28 @@ namespace SpiritAnimism
         private void Awake()
         {
             Log = Logger;
+            Settings = Config;
+            // Patched before binding, so the config file saved by the binds is already in section order.
+            new Harmony(Guid).PatchAll();
+
             BindLooks();
-            Picker.Init(Config);
-            SummonPanel.Init(Config);
             DismissKey = Config.Bind(
                 "Dismiss",
                 "Key",
                 new KeyboardShortcut(KeyCode.X, KeyCode.LeftAlt),
                 "Dismisses all spirit summons you called, with the vanilla despawn effect.");
+            Picker.Init(Config);
+            SummonPanel.Init(Config);
 #if DEBUG
             DebugDump.Init(Config);
 #endif
             _configLastWrite = File.GetLastWriteTimeUtc(Config.ConfigFilePath);
 
-            new Harmony(Guid).PatchAll();
             Log.LogInfo($"{Name} {Version} loaded");
         }
 
         // One config section per animal, holding everything about how it looks. The settings are
-        // explained once, under the first animal; BepInEx writes sections alphabetically, so that
-        // section is also the first one in the file.
+        // explained once, under the first animal, which is also the first section in the file.
         private void BindLooks()
         {
             var iceBlue = new Color32(0x40, 0xC8, 0xFF, 0xFF);
@@ -59,12 +63,13 @@ namespace SpiritAnimism
                     ? "Body colour of the Spirit look, glow colour of the Natural look. Hex RRGGBBAA; alpha is ignored."
                     : "");
                 type.Glow = Config.Bind(type.Name, "Glow", 0.3f, new ConfigDescription(
-                    explain ? "Glow strength of the Natural look. 0 = plain wild animal." : "",
+                    explain ? "Body glow strength of the Natural look. 0 = plain wild animal." : "",
                     new AcceptableValueRange<float>(0f, LookSpec.MaxGlow)));
                 if (type.HasEyeMask)
                 {
-                    type.Area = Config.Bind(type.Name, "GlowArea", GlowArea.Body,
-                        "Where the Natural look glows: the whole body, or only the eyes.");
+                    type.EyeGlow = Config.Bind(type.Name, "EyeGlow", 0f, new ConfigDescription(
+                        "Eye glow strength of the Natural look, drawn from the moose's own eye mask. Combine with Glow: body only, eyes only, or both at their own strengths.",
+                        new AcceptableValueRange<float>(0f, LookSpec.MaxGlow)));
                 }
             }
         }
@@ -108,6 +113,51 @@ namespace SpiritAnimism
             // Read after the reload, which may itself rewrite the file.
             _configLastWrite = File.GetLastWriteTimeUtc(path);
             Log.LogInfo("Config reloaded");
+        }
+    }
+
+    // BepInEx saves the config file with its sections in alphabetical order. This rewrites the file
+    // it has just saved with the sections in the order the plugin binds them: the animals, then
+    // Dismiss, Pick and Panel. Sections the plugin does not know keep their place at the end.
+    [HarmonyPatch(typeof(ConfigFile), nameof(ConfigFile.Save))]
+    internal static class ConfigFileSavePatch
+    {
+        private static void Postfix(ConfigFile __instance)
+        {
+            if (__instance != Plugin.Settings) return;
+
+            var order = new List<string>();
+            foreach (var definition in __instance.Keys)
+            {
+                if (!order.Contains(definition.Section)) order.Add(definition.Section);
+            }
+
+            // Everything before the first section header is the file header; each header starts a block.
+            var header = new List<string>();
+            var blocks = new Dictionary<string, List<string>>();
+            var block = header;
+            foreach (var line in File.ReadAllLines(__instance.ConfigFilePath))
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("[") && trimmed.EndsWith("]"))
+                {
+                    var section = trimmed.Substring(1, trimmed.Length - 2);
+                    if (!blocks.TryGetValue(section, out block))
+                    {
+                        block = new List<string>();
+                        blocks[section] = block;
+                    }
+                    if (!order.Contains(section)) order.Add(section);
+                }
+                block.Add(line);
+            }
+
+            var ordered = new List<string>(header);
+            foreach (var section in order)
+            {
+                if (blocks.TryGetValue(section, out var lines)) ordered.AddRange(lines);
+            }
+            File.WriteAllLines(__instance.ConfigFilePath, ordered, Utility.UTF8NoBom);
         }
     }
 }

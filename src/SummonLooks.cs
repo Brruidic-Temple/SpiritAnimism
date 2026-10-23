@@ -9,23 +9,25 @@ namespace SpiritAnimism
     internal struct LookSpec
     {
         public const float MaxGlow = 5f;
-        private const string Version = "1";
+        private const string Version = "2";
 
         public Look Look;
         public Color Tint;
         public float Glow;
-        public GlowArea Area;
+        public float EyeGlow;
 
         public static LookSpec FromConfig(SummonType type) => new LookSpec
         {
             Look = type.Look.Value,
             Tint = type.Tint.Value,
             Glow = type.Glow.Value,
-            Area = type.Area != null ? type.Area.Value : GlowArea.Body,
+            EyeGlow = type.EyeGlow != null ? type.EyeGlow.Value : 0f,
         };
 
         public string Serialize() =>
-            $"{Version};{Look};{ColorUtility.ToHtmlStringRGB(Tint)};{Glow.ToString("0.###", CultureInfo.InvariantCulture)};{Area}";
+            $"{Version};{Look};{ColorUtility.ToHtmlStringRGB(Tint)};{Strength(Glow)};{Strength(EyeGlow)}";
+
+        private static string Strength(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
         // The text comes from another client, so every field is range-checked rather than trusted.
         public static bool TryParse(string text, out LookSpec spec)
@@ -36,10 +38,15 @@ namespace SpiritAnimism
             if (parts.Length != 5 || parts[0] != Version) return false;
             if (!Enum.TryParse(parts[1], out spec.Look) || !Enum.IsDefined(typeof(Look), spec.Look)) return false;
             if (!ColorUtility.TryParseHtmlString("#" + parts[2], out spec.Tint)) return false;
-            if (!float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out spec.Glow)) return false;
-            if (float.IsNaN(spec.Glow) || float.IsInfinity(spec.Glow)) return false;
-            spec.Glow = Mathf.Clamp(spec.Glow, 0f, MaxGlow);
-            return Enum.TryParse(parts[4], out spec.Area) && Enum.IsDefined(typeof(GlowArea), spec.Area);
+            return TryParseStrength(parts[3], out spec.Glow) && TryParseStrength(parts[4], out spec.EyeGlow);
+        }
+
+        private static bool TryParseStrength(string text, out float value)
+        {
+            if (!float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) return false;
+            if (float.IsNaN(value) || float.IsInfinity(value)) return false;
+            value = Mathf.Clamp(value, 0f, MaxGlow);
+            return true;
         }
     }
 
@@ -193,6 +200,10 @@ namespace SpiritAnimism
         private string _applied;
         private Material _spirit;
         private Material _natural;
+        // Emission map for a body-and-eyes glow, drawn for this summon's own body-to-eye ratio.
+        private Texture2D _mixedGlow;
+        private float _mixedBody;
+        private float _mixedEyes;
 
         // Key identifies the look, so equal looks are not re-applied every tick.
         public void Apply(SummonType species, LookSpec? spec, string key)
@@ -241,21 +252,20 @@ namespace SpiritAnimism
                     _natural = new Material(_species.WildMaterial) { name = _species.WildMaterial.name + "_spiritanimism" };
                     _natural.EnableKeyword("_EMISSION");
                 }
-                var eyesWithoutMask = spec.Area == GlowArea.Eyes && _species.VanillaEmissionMap == null;
-                if (eyesWithoutMask && !_species.WarnedNoEyeMask)
-                {
-                    _species.WarnedNoEyeMask = true;
-                    Plugin.Log.LogWarning($"{_species.Name} has no eye mask; GlowArea Eyes lights nothing on it");
-                }
-                if (spec.Glow > 0f && !eyesWithoutMask)
-                {
-                    _natural.SetTexture(SummonLooks.EmissionMapId, spec.Area == GlowArea.Body ? Texture2D.whiteTexture : _species.VanillaEmissionMap);
-                    _natural.SetColor(SummonLooks.EmissionColorId, new Color(spec.Tint.r, spec.Tint.g, spec.Tint.b, 1f) * spec.Glow);
-                }
-                else
+                var body = spec.Glow;
+                var eyes = _species.VanillaEmissionMap != null ? spec.EyeGlow : 0f;
+                if (body <= 0f && eyes <= 0f)
                 {
                     _natural.SetTexture(SummonLooks.EmissionMapId, _species.VanillaEmissionMap);
                     _natural.SetColor(SummonLooks.EmissionColorId, _species.VanillaEmissionColor);
+                }
+                else
+                {
+                    // The shader multiplies one colour by one map: the stronger glow sets the colour,
+                    // the map carries each part's share of it.
+                    var peak = Mathf.Max(body, eyes);
+                    _natural.SetTexture(SummonLooks.EmissionMapId, GlowMap(body / peak, eyes / peak));
+                    _natural.SetColor(SummonLooks.EmissionColorId, new Color(spec.Tint.r, spec.Tint.g, spec.Tint.b, 1f) * peak);
                 }
                 return _natural;
             }
@@ -269,10 +279,69 @@ namespace SpiritAnimism
             return _spirit;
         }
 
+        // White lights the whole body and the animal's own mask lights the eyes. A mix of the two is
+        // drawn once per ratio: every pixel takes the brighter of the body share and the mask's eye share.
+        private Texture GlowMap(float body, float eyes)
+        {
+            if (eyes <= 0f) return Texture2D.whiteTexture;
+            if (body <= 0f) return _species.VanillaEmissionMap;
+            if (_mixedGlow != null && body == _mixedBody && eyes == _mixedEyes) return _mixedGlow;
+
+            var mask = _species.VanillaEmissionMap;
+            if (_species.ReadableEyeMask == null) _species.ReadableEyeMask = Textures.ReadableCopy(mask);
+            var pixels = _species.ReadableEyeMask.GetPixels32();
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                var eyeShare = Mathf.Max(pixels[i].r, pixels[i].g, pixels[i].b) / 255f * eyes;
+                var value = (byte)Mathf.RoundToInt(255f * Mathf.Max(eyeShare, body));
+                pixels[i] = new Color32(value, value, value, 255);
+            }
+
+            if (_mixedGlow == null)
+            {
+                _mixedGlow = new Texture2D(mask.width, mask.height, TextureFormat.RGBA32, true)
+                {
+                    name = mask.name + "_spiritanimism",
+                    wrapMode = mask.wrapMode,
+                    filterMode = mask.filterMode,
+                };
+            }
+            _mixedGlow.SetPixels32(pixels);
+            _mixedGlow.Apply();
+            _mixedBody = body;
+            _mixedEyes = eyes;
+            return _mixedGlow;
+        }
+
         private void OnDestroy()
         {
             if (_spirit != null) Destroy(_spirit);
             if (_natural != null) Destroy(_natural);
+            if (_mixedGlow != null) Destroy(_mixedGlow);
+        }
+    }
+
+    internal static class Textures
+    {
+        // A CPU-readable copy of a texture asset, read back through a temporary render target.
+        public static Texture2D ReadableCopy(Texture source)
+        {
+            var target = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32);
+            var previous = RenderTexture.active;
+            try
+            {
+                Graphics.Blit(source, target);
+                RenderTexture.active = target;
+                var copy = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false);
+                copy.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
+                copy.Apply();
+                return copy;
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(target);
+            }
         }
     }
 }

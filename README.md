@@ -16,15 +16,17 @@ vanilla. Players without the mod see everything as vanilla.
 ## Config
 
 `BepInEx/config/Brruid.SpiritAnimism.cfg`. Edits are picked up while the game runs, including on
-summons already out. One section per animal: `[Bear]`, `[Moose]`, `[Boar]`, `[Wolf]`.
+summons already out. The file starts with one section per animal: `[Bear]`, `[Boar]`, `[Moose]`,
+`[Wolf]`, followed by `[Dismiss]`, `[Pick]` and `[Panel]`.
 
 - `Look` - `Spirit` (vanilla translucent ghost in your tint) or `Natural` (the wild animal's own
   opaque body, borrowed from the wild creature at runtime, with a glow in your tint).
 - `Tint` - hex colour. Spirit look: the body colour, vanilla brightness and transparency kept.
   Natural look: the glow colour. Default `40C8FFFF` (ice blue).
-- `Glow` - glow strength for the Natural look, 0 to 5. 0 is a plain wild animal. Default 0.3.
-- `GlowArea` (moose only) - `Body` (whole body) or `Eyes` (the moose's own eye mask, in your tint).
-  The other animals have no usable eye mask; see Known limitations.
+- `Glow` - body glow strength for the Natural look, 0 to 5. 0 is a plain wild animal. Default 0.3.
+- `EyeGlow` (moose only) - eye glow strength for the Natural look, 0 to 5, from the moose's own eye
+  mask in your tint. Combine with `Glow` for body only, eyes only, or both at their own strengths.
+  Default 0. The other animals have no usable eye mask; see Known limitations.
 
 The remaining sections:
 

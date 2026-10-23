@@ -11,12 +11,6 @@ namespace SpiritAnimism
         Natural,
     }
 
-    internal enum GlowArea
-    {
-        Body,
-        Eyes,
-    }
-
     // One kind of Spirit Caller summon: its prefabs, its config entries and the shared assets its
     // looks are built from.
     internal sealed class SummonType
@@ -24,13 +18,13 @@ namespace SpiritAnimism
         public readonly string Name;
         public readonly string PrefabName;
         public readonly string WildPrefabName;
-        // Only the moose carries an emission mask that marks its eyes, so only it gets a GlowArea entry.
+        // Only the moose carries an emission mask that marks its eyes, so only it gets an EyeGlow entry.
         public readonly bool HasEyeMask;
 
         public ConfigEntry<Look> Look;
         public ConfigEntry<Color> Tint;
         public ConfigEntry<float> Glow;
-        public ConfigEntry<GlowArea> Area;
+        public ConfigEntry<float> EyeGlow;
 
         // Shared assets, looked up once: the summon's spirit body material and the wild animal's body material.
         public Material SpiritMaterial;
@@ -38,8 +32,9 @@ namespace SpiritAnimism
         public Material WildMaterial;
         public Texture VanillaEmissionMap;
         public Color VanillaEmissionColor;
+        // CPU-readable copy of the eye mask, made the first time a summon mixes body and eye glow.
+        public Texture2D ReadableEyeMask;
         public bool AssetsLookedUp;
-        public bool WarnedNoEyeMask;
 
         public SummonType(string name, string wildPrefabName, bool hasEyeMask = false)
         {
@@ -79,8 +74,8 @@ namespace SpiritAnimism
         internal static readonly SummonType[] Types =
         {
             new SummonType("Bear", "Bjorn"),
-            new SummonType("Moose", "Moose", hasEyeMask: true),
             new SummonType("Boar", "Boar"),
+            new SummonType("Moose", "Moose", hasEyeMask: true),
             new SummonType("Wolf", "Wolf"),
         };
 
