@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 (unreleased)
+## 0.4.0
 
 - Natural look: the wild animal's own body with a glow in your tint; the moose's body and eyes glow at their own strengths.
 - Picker: secondary attack with the Spirit Caller cycles what it summons next; cap-aware; remembered.
