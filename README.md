@@ -1,75 +1,78 @@
 # SpiritAnimism
 
-Valheim mod by Brruid. Changes how the animals summoned by the Spirit Caller staff look.
+Make the Spirit Caller's animals yours. Keep the ghostly look in a colour you choose, or call
+real bears, boars, moose and wolves with a glow in your colour. Pick what the staff summons
+next, watch your pack in a small panel, and send them all home with one key.
 
-## Status
+Client-side. Nothing to install on the server, and it plays fine next to people who do not
+have it.
 
-Pre-release. Client-side; nothing to install on the server. Per summon type (bear, moose,
-boar, wolf): a Spirit or Natural look, a tint colour and a glow, reloaded live when the config
-file changes. A picker chooses what the staff summons next, a panel lists your summons, and a
-hotkey dismisses them.
+## Features
 
-Your chosen look travels with each summon you call: other players running the mod see your
-look on your animals and theirs on their own. Summons called by players without the mod stay
-vanilla. Players without the mod see everything as vanilla.
+- **Spirit look** - the vanilla translucent animal, tinted any colour you like.
+- **Natural look** - the wild animal's own solid body, with a glow in your colour. The moose
+  can glow from its body, its eyes, or both.
+- **Pick your summon** - secondary attack (middle mouse by default) with the staff in hand
+  cycles which animal comes next. Animals already at your staff's limit are skipped, so a cast
+  never sends your oldest one home.
+- **Summon panel** - a top-left list of your animals with their health and what they are doing.
+- **Dismiss key** - LeftAlt + X sends every summon you called home, with the usual despawn
+  effect, including ones you left behind far away.
+- **Live config** - edit the config file while playing and the change shows at once, even on
+  animals already out.
+- **Multiplayer aware** - other players with the mod see your look on your animals and their
+  own on theirs. Players without the mod see vanilla.
+
+## Install
+
+Needs BepInEx. Unzip and put `SpiritAnimism.dll` in `BepInEx/plugins`.
 
 ## Config
 
-`BepInEx/config/Brruid.SpiritAnimism.cfg`. Edits are picked up while the game runs, including on
-summons already out. The file starts with one section per animal: `[Bear]`, `[Boar]`, `[Moose]`,
-`[Wolf]`, followed by `[Dismiss]`, `[Pick]` and `[Panel]`.
+The file is `BepInEx/config/Brruid.SpiritAnimism.cfg`. It is created on first launch and can
+be edited while the game runs.
 
-- `Look` - `Spirit` (vanilla translucent ghost in your tint) or `Natural` (the wild animal's own
-  opaque body, borrowed from the wild creature at runtime, with a glow in your tint).
-- `Tint` - hex colour. Spirit look: the body colour, vanilla brightness and transparency kept.
-  Natural look: the glow colour. Default `40C8FFFF` (ice blue).
-- `Glow` - body glow strength for the Natural look, 0 to 5. 0 is a plain wild animal. Default 0.3.
-- `EyeGlow` (moose only) - eye glow strength for the Natural look, 0 to 5, from the moose's own eye
-  mask in your tint. Combine with `Glow` for body only, eyes only, or both at their own strengths.
-  Default 0. The other animals have no usable eye mask; see Known limitations.
+### One section per animal: `[Bear]`, `[Boar]`, `[Moose]`, `[Wolf]`
 
-The remaining sections:
+| Setting | What it does | Default |
+| --- | --- | --- |
+| `Look` | `Spirit` for the vanilla ghost in your tint, `Natural` for the wild animal's own body with a glow in your tint. | `Spirit` |
+| `Tint` | The colour, as hex `RRGGBBAA`. Alpha is ignored. Body colour of the Spirit look, glow colour of the Natural look. | `40C8FFFF` (ice blue) |
+| `Glow` | Body glow strength of the Natural look, 0 to 5. 0 is a plain wild animal. | `0.3` |
+| `EyeGlow` | Moose only. Eye glow strength of the Natural look, 0 to 5. Combine with `Glow` for body only, eyes only, or both. | `0` |
 
-- `[Pick]` - with the Spirit Caller in hand, the secondary attack (middle mouse by default) cycles
-  which animal the next cast summons; a centre message names it. `Order` is the cycle (default
-  `Random, Bear, Moose, Boar, Wolf`) and `SkipFull` skips kinds already at your staff's limit, both
-  when cycling and in the Random roll. The current pick is saved with your character. If
-  PickYourSpirit is also installed, this picker switches itself off.
-- `[Panel]` - a top-left list of your standing summons: header with the count and the current pick,
-  then each summon's name, what it is doing, and a health bar. Shown while the Spirit Caller is in
-  hand or a summon is out. `Show`, `OffsetX` (20), `OffsetY` (220) and `Scale` (1).
-- `[Dismiss]` `Key` - hotkey that dismisses every spirit summon you called, with the vanilla
-  despawn effect, including ones left standing far away that the game itself can no longer
-  unsummon. Default `LeftAlt + X`. Ignored while the console, chat or menu is open.
+Example - a real wolf with faintly glowing red fur:
 
-## Known limitations
+    [Wolf]
+    Look = Natural
+    Tint = FF3030FF
+    Glow = 0.2
 
-- Eye glow is only controllable on the moose. Measured from the game's own masks: the moose mask
-  lights a tiny patch at full strength (the eyes); the bear mask lights a small patch at half
-  strength that is not visible on the model; the boar has no mask; the wolf's eye glow is baked
-  into its texture and always on.
+### `[Pick]`
 
-- Opacity is not adjustable. The vanilla spirit shader (`Custom/Fallen Warrior`) exposes no alpha
-  or blend settings; its `_Cutoff` behaves as a hard visible/invisible threshold (measured: unchanged
-  up to 0.62, gone from 0.63). Making summons more solid needs a different body material.
+| Setting | What it does | Default |
+| --- | --- | --- |
+| `Order` | What the secondary attack cycles through. `Random` is the game's own roll. | `Random, Bear, Moose, Boar, Wolf` |
+| `SkipFull` | Skip animals already at your staff's limit, when cycling and in the Random roll. | `true` |
 
-## Building
+The current pick is saved with your character. If PickYourSpirit is installed, this picker
+turns itself off so the two do not fight.
 
-Requires the .NET SDK, a Valheim install, and a BepInEx 5 install (a Gale profile).
-Paths default to the author's machine; override with `-p:ValheimManaged=...`,
-`-p:GaleProfile=...` or `-p:PluginDeployDir=...`.
+### `[Panel]`
 
-    dotnet build -c Release
+| Setting | What it does | Default |
+| --- | --- | --- |
+| `Show` | Show the panel. It appears while the staff is in hand or a summon is out. | `true` |
+| `OffsetX` | Distance from the left edge of the screen. | `20` |
+| `OffsetY` | Distance from the top edge of the screen. | `220` |
+| `Scale` | Size of the panel, 0.5 to 3. | `1` |
 
-The build copies the DLL into the Gale profile's plugins folder. Pass `-p:NoDeploy=true` to skip.
-A Debug build (`dotnet build`) adds a `[Debug]` config section: `DumpLiveSummons` writes every
-standing summon's visual setup to the log, and `DumpKey` (default `LeftAlt + D`) writes every
-summon's network state, loaded or not.
+### `[Dismiss]`
 
-    dotnet build -c Release -t:Package
+| Setting | What it does | Default |
+| --- | --- | --- |
+| `Key` | Hotkey that dismisses every summon you called. Ignored while the console, chat or menu is open. | `X + LeftAlt` |
 
-Builds the Thunderstore zip into `dist/`. Needs `package/icon.png` (256x256).
+## Source
 
-## License
-
-MIT. See LICENSE.
+Source and build instructions: https://github.com/Brruidic-Temple/SpiritAnimism
