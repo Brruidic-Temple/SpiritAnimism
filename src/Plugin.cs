@@ -14,7 +14,7 @@ namespace SpiritAnimism
     {
         public const string Guid = "Brruid.SpiritAnimism";
         public const string Name = "SpiritAnimism";
-        public const string Version = "0.4.0";
+        public const string Version = "0.4.1";
 
         internal static ManualLogSource Log;
         internal static ConfigFile Settings;

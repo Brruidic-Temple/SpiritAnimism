@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- README rewritten for the Thunderstore page. Build notes moved to BUILDING.md. No gameplay changes.
+
 ## 0.4.0
 
 - Natural look: the wild animal's own body with a glow in your tint; the moose's body and eyes glow at their own strengths.
