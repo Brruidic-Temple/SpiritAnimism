@@ -14,7 +14,7 @@ namespace SpiritAnimism
     {
         public const string Guid = "Brruid.SpiritAnimism";
         public const string Name = "SpiritAnimism";
-        public const string Version = "0.4.2";
+        public const string Version = "0.5.0";
 
         internal static ManualLogSource Log;
         internal static ConfigFile Settings;
@@ -39,6 +39,7 @@ namespace SpiritAnimism
                 new KeyboardShortcut(KeyCode.X, KeyCode.LeftAlt),
                 "Dismisses all spirit summons you called, with the vanilla despawn effect.");
             Saddles.Init(Config);
+            Formations.Init(Config);
             Picker.Init(Config);
             SummonPanel.Init(Config);
 #if DEBUG
@@ -81,6 +82,7 @@ namespace SpiritAnimism
             SummonPanel.Update();
             if (DismissKey.Value.IsDown() && Dismiss.InputIsFree()) Dismiss.MySummons();
             Saddles.Update();
+            Formations.Update();
 #if DEBUG
             DebugDump.Update();
 #endif
@@ -120,7 +122,7 @@ namespace SpiritAnimism
 
     // BepInEx saves the config file with its sections in alphabetical order. This rewrites the file
     // it has just saved with the sections in the order the plugin binds them: the animals, then
-    // Dismiss, Pick and Panel. Sections the plugin does not know keep their place at the end.
+    // Dismiss, Formations, Pick and Panel. Sections the plugin does not know keep their place at the end.
     [HarmonyPatch(typeof(ConfigFile), nameof(ConfigFile.Save))]
     internal static class ConfigFileSavePatch
     {

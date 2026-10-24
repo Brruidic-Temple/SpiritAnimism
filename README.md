@@ -20,6 +20,10 @@ have it.
   effect, including ones you left behind far away.
 - **Saddles come back** - a saddle on a dismissed or unsummoned animal returns to whoever
   fitted it, or to the summoner, instead of vanishing with the animal.
+- **Formations** - your summons follow in an arc behind you, a ring around you, or a shape
+  you draw yourself, instead of piling onto your position. Stand still a moment and they
+  settle, so you can walk up to one and interact. Animals keep a buffer of air between them
+  and steer around each other, you and your mount instead of shoving through.
 - **Live config** - edit the config file while playing and the change shows at once, even on
   animals already out.
 - **Multiplayer aware** - other players with the mod see your look on your animals and their
@@ -31,51 +35,13 @@ Needs BepInEx. Unzip and put `SpiritAnimism.dll` in `BepInEx/plugins`.
 
 ## Config
 
-The file is `BepInEx/config/Brruid.SpiritAnimism.cfg`. It is created on first launch and can
-be edited while the game runs.
+The file is `BepInEx/config/Brruid.SpiritAnimism.cfg`, created on first launch, with every
+setting explained inside it. Edit it while the game runs and the change applies at once. Your
+own formations go in `Brruid.SpiritAnimism.Formations.cfg` beside it, created with a worked
+example.
 
-### One section per animal: `[Bear]`, `[Boar]`, `[Moose]`, `[Wolf]`
-
-| Setting | What it does | Default |
-| --- | --- | --- |
-| `Look` | `Spirit` for the vanilla ghost in your tint, `Natural` for the wild animal's own body with a glow in your tint. | `Spirit` |
-| `Tint` | The colour, as hex `RRGGBBAA`. Alpha is ignored. Body colour of the Spirit look, glow colour of the Natural look. | `40C8FFFF` (ice blue) |
-| `Glow` | Body glow strength of the Natural look, 0 to 5. 0 is a plain wild animal. | `0.3` |
-| `EyeGlow` | Moose only. Eye glow strength of the Natural look, 0 to 5. Combine with `Glow` for body only, eyes only, or both. | `0` |
-
-Example - a real wolf with faintly glowing red fur:
-
-    [Wolf]
-    Look = Natural
-    Tint = FF3030FF
-    Glow = 0.2
-
-### `[Pick]`
-
-| Setting | What it does | Default |
-| --- | --- | --- |
-| `Order` | What the secondary attack cycles through. `Random` is the game's own roll. | `Random, Bear, Moose, Boar, Wolf` |
-| `SkipFull` | Skip animals already at your staff's limit, when cycling and in the Random roll. | `true` |
-
-The current pick is saved with your character. If PickYourSpirit is installed, this picker
-turns itself off so the two do not fight.
-
-### `[Panel]`
-
-| Setting | What it does | Default |
-| --- | --- | --- |
-| `Show` | Show the panel. It appears while the staff is in hand or a summon is out. | `true` |
-| `OffsetX` | Distance from the left edge of the screen. | `20` |
-| `OffsetY` | Distance from the top edge of the screen. | `220` |
-| `Scale` | Size of the panel, 0.5 to 3. | `1` |
-
-### `[Dismiss]`
-
-| Setting | What it does | Default |
-| --- | --- | --- |
-| `Key` | Hotkey that dismisses every summon you called. Ignored while the console, chat or menu is open. | `X + LeftAlt` |
-| `ReturnSaddle` | Give a saddle back when its animal is dismissed or unsummoned: to the player who fitted it, failing that the summoner, failing that dropped where the animal stood. Off = lost, as in the unmodded game. | `true` |
-| `DismissWhileRiding` | Whether Dismiss also removes the animal you are riding. Off keeps your mount and dismisses the rest. | `true` |
+Every setting, with defaults and examples:
+https://github.com/Brruidic-Temple/SpiritAnimism/blob/main/docs/CONFIG.md
 
 ## Source
 

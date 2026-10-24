@@ -5,10 +5,10 @@
     <LangVersion>10</LangVersion>
     <AssemblyName>SpiritAnimism</AssemblyName>
     <RootNamespace>SpiritAnimism</RootNamespace>
-    <Version>0.4.2</Version>
+    <Version>0.5.0</Version>
     <Authors>Brruid</Authors>
     <ThunderstoreTeam>Brruidic_Temple</ThunderstoreTeam>
-    <PackageDescription>Spirit Caller summons your way: tint or natural look per animal, pick what the staff summons, a summon panel and a dismiss key. Client-side.</PackageDescription>
+    <PackageDescription>Spirit Caller summons QoL Mod</PackageDescription>
     <WebsiteUrl>https://github.com/Brruidic-Temple/SpiritAnimism</WebsiteUrl>
     <BepInExPackDependency>denikson-BepInExPack_Valheim-5.4.2351</BepInExPackDependency>
     <Nullable>disable</Nullable>

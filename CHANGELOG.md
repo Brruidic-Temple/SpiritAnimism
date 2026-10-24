@@ -1,7 +1,10 @@
 # Changelog
 
-## 0.4.2
+## 0.5.0 (unreleased)
 
+- Formations: your summons follow in an arrangement around you instead of crowding your position. Built-in Leader (arc behind you), Defense (rings) and Bubble (one widening ring), plus your own formations in `Brruid.SpiritAnimism.Formations.cfg`, with slots that can be reserved for a kind. Stand still for a moment and the formation settles so you can walk up to an animal; a summon you face from close by holds still.
+- Summons steer around other animals, players and mounts instead of walking into them, by the `Buffer` width.
+- Config: new `[Formations]` section with `Formation`, `Distance` and `Buffer`. The formation's name travels with your summons to other players' machines; an unknown name there means Leader.
 - A saddle no longer vanishes with a dismissed or unsummoned animal. It returns to the player who fitted it, failing that to the summoner, failing that it drops where the animal stood. Both players need the mod for a saddle to cross between them.
 - `DismissWhileRiding` (default on) decides whether Dismiss also removes the animal you are riding.
 
