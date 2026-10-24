@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0 (unreleased)
+## 0.5.0
 
 - Formations: your summons follow in an arrangement around you instead of crowding your position. Built-in Leader (arc behind you), Defense (rings) and Bubble (one widening ring), plus your own formations in `Brruid.SpiritAnimism.Formations.cfg`, with slots that can be reserved for a kind. Stand still for a moment and the formation settles so you can walk up to an animal; a summon you face from close by holds still.
 - Summons steer around other animals, players and mounts instead of walking into them, by the `Buffer` width.
