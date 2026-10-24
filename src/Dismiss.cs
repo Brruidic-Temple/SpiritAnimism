@@ -12,15 +12,24 @@ namespace SpiritAnimism
             if (player == null) return;
 
             var dismissed = 0;
+            var keptMount = false;
             foreach (var summon in Summons.Mine())
             {
+                if (!Saddles.DismissWhileRiding.Value && Saddles.IsRiding(player, summon))
+                {
+                    keptMount = true;
+                    continue;
+                }
                 if (!summon.View.HasOwner()) summon.View.ClaimOwnership();
                 summon.View.InvokeRPC(ZNetView.Everybody, "RPC_UnSummon");
                 dismissed++;
             }
 
             Plugin.Log.LogInfo($"Dismissed {dismissed} summon(s)");
-            if (dismissed > 0) player.Message(MessageHud.MessageType.Center, $"Dismissed {dismissed} spirit{(dismissed == 1 ? "" : "s")}");
+            // One centre message, since a second would replace the first before it is read.
+            var message = dismissed > 0 ? $"Dismissed {dismissed} spirit{(dismissed == 1 ? "" : "s")}" : "";
+            if (keptMount) message = (message == "" ? "" : message + ". ") + "Dismount to dismiss your mount";
+            if (message != "") player.Message(MessageHud.MessageType.Center, message);
         }
 
         public static bool InputIsFree()

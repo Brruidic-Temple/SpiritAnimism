@@ -14,7 +14,7 @@ namespace SpiritAnimism
     {
         public const string Guid = "Brruid.SpiritAnimism";
         public const string Name = "SpiritAnimism";
-        public const string Version = "0.4.1";
+        public const string Version = "0.4.2";
 
         internal static ManualLogSource Log;
         internal static ConfigFile Settings;
@@ -38,6 +38,7 @@ namespace SpiritAnimism
                 "Key",
                 new KeyboardShortcut(KeyCode.X, KeyCode.LeftAlt),
                 "Dismisses all spirit summons you called, with the vanilla despawn effect.");
+            Saddles.Init(Config);
             Picker.Init(Config);
             SummonPanel.Init(Config);
 #if DEBUG
@@ -79,6 +80,7 @@ namespace SpiritAnimism
             SummonLooks.Update();
             SummonPanel.Update();
             if (DismissKey.Value.IsDown() && Dismiss.InputIsFree()) Dismiss.MySummons();
+            Saddles.Update();
 #if DEBUG
             DebugDump.Update();
 #endif

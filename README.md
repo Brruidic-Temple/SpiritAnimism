@@ -18,6 +18,8 @@ have it.
 - **Summon panel** - a top-left list of your animals with their health and what they are doing.
 - **Dismiss key** - LeftAlt + X sends every summon you called home, with the usual despawn
   effect, including ones you left behind far away.
+- **Saddles come back** - a saddle on a dismissed or unsummoned animal returns to whoever
+  fitted it, or to the summoner, instead of vanishing with the animal.
 - **Live config** - edit the config file while playing and the change shows at once, even on
   animals already out.
 - **Multiplayer aware** - other players with the mod see your look on your animals and their
@@ -72,6 +74,8 @@ turns itself off so the two do not fight.
 | Setting | What it does | Default |
 | --- | --- | --- |
 | `Key` | Hotkey that dismisses every summon you called. Ignored while the console, chat or menu is open. | `X + LeftAlt` |
+| `ReturnSaddle` | Give a saddle back when its animal is dismissed or unsummoned: to the player who fitted it, failing that the summoner, failing that dropped where the animal stood. Off = lost, as in the unmodded game. | `true` |
+| `DismissWhileRiding` | Whether Dismiss also removes the animal you are riding. Off keeps your mount and dismisses the rest. | `true` |
 
 ## Source
 

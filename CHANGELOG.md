@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+- A saddle no longer vanishes with a dismissed or unsummoned animal. It returns to the player who fitted it, failing that to the summoner, failing that it drops where the animal stood. Both players need the mod for a saddle to cross between them.
+- `DismissWhileRiding` (default on) decides whether Dismiss also removes the animal you are riding.
+
 ## 0.4.1
 
 - README rewritten for the Thunderstore page. Build notes moved to BUILDING.md. No gameplay changes.
